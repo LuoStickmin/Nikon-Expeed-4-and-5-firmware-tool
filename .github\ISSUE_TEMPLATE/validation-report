@@ -1,0 +1,93 @@
+name: 固件验证回报 / Firmware validation report
+description: 用 key_all.json 验证你手上的 Expeed 4/5 固件，回报 self_check · Validate your Expeed 4/5 firmware against key_all.json and report self_check
+title: "[验证/Validation] <机型/Model> <版本/Version>"
+labels: ["validation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢参与！只需要跑一条命令并贴三行哈希，不需要理解恢复算法。
+        详见 [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md)。
+        请**不要**上传固件二进制，只贴 SHA-256。
+
+        Thanks for participating! Just run one command and paste three hashes; you do not need to understand the recovery algorithm.
+        See [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md).
+        **Do not** upload firmware binaries; paste SHA-256 only.
+
+  - type: input
+    id: model
+    attributes:
+      label: 机型 / Model
+      placeholder: D750
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 固件版本 / Firmware version
+      placeholder: "0115"
+    validations:
+      required: true
+
+  - type: input
+    id: sha256
+    attributes:
+      label: 输入文件 SHA-256 / Input file SHA-256
+      description: 对加密原镜像（未解密）计算 · Compute over the encrypted original (not decrypted)
+      placeholder: 64 hex chars
+    validations:
+      required: true
+
+  - type: dropdown
+    id: header
+    attributes:
+      label: body 偏移（空格标签位置）/ body offset (space tag position)
+      options:
+        - "0x00（包装 A，无 32 字节头 / wrapper A, no 32-byte header）"
+        - "0x20（包装 B，有 32 字节头 / wrapper B, 32-byte header）"
+        - "不确定 / 自动识别 · unsure / auto-detect"
+        - "0x260（Z 系列新包装，工具会拒绝 / Z-series new wrapper, tool refuses）"
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: 实际运行的命令 / Command actually run
+      render: shell
+      placeholder: python extract_key_mix.py --firmware-dir corpus --out key_check.json
+    validations:
+      required: true
+
+  - type: textarea
+    id: selfcheck
+    attributes:
+      label: self_check 三行 SHA-256 / Three self_check SHA-256 lines
+      description: 从 key_check.json 的 self_check 字段复制 · Copy from key_check.json's self_check field
+      render: text
+      placeholder: |
+        T1  ...
+        T2  ...
+        T3  ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: result
+    attributes:
+      label: 与 README §4.1 是否一致 / Match against README §4.1
+      options:
+        - "一致 / Match"
+        - "不一致（可能是新密钥变体）/ Mismatch (possibly a new key variant)"
+        - "不确定，请维护者判断 / Unsure, maintainer please judge"
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 补充说明（可选）/ Additional notes (optional)
+      description: 例如解密后目录解析 / CRC 是否通过、模块组成、异常现象 · e.g., directory parse / CRC after decryption, module composition, anomalies
+    validations:
+      required: false
