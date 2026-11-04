@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全 / 合规问题 · Security / Compliance
+    url: https://github.com/<OWNER>/<REPO>/blob/main/SECURITY.md
+    about: 版权、许可证或滥用风险，请先阅读 SECURITY.md 并直接联系维护者 · Copyright, license, or abuse concerns — read SECURITY.md and contact the maintainer directly
+  - name: 贡献指南 · Contributing Guide
+    url: https://github.com/<OWNER>/<REPO>/blob/main/CONTRIBUTING.md
+    about: 提交 PR 前请先阅读 · Read before submitting a PR
