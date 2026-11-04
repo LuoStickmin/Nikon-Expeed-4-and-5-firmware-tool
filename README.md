@@ -6,6 +6,7 @@
 > 本项目是 WonderLantern 项目的延伸，由 DeepSeek 强力驱动。
 
 </div>
+
 [中文](README.md) · [English](README.en.md)
 > 从官方更新包 `.bin` 出发，**只用密文本身**恢复厂商级 XOR 密钥表，解开容器、校验两级 CRC、切出模块，并留下一组静态分析探针。
 
