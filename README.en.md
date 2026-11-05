@@ -34,7 +34,7 @@
 
 ## 1. Project Overview
 
-This repository is a **reproducible research record and toolkit**: given an Expeed 4/5-generation DSLR firmware `.bin`, it recovers the three-layer XOR key tables shared by this generation *without any previously published key*, opens the container, uses the container's own CRC to prove "we decrypted it correctly", then carves each module out; a set of probe scripts then attempt static localization. All conclusions land in artifacts like `key_all.json`, `*.dec`, and `*.modules/`.
+This repository is a **reproducible research record and toolkit**: given an Expeed 4/5-generation DSLR firmware `.bin`, it recovers the three-layer XOR key tables shared by this generation *without any previously published key*, opens the container, uses the container's own CRC to prove "we decrypted it correctly", then carves each module out; a set of probe scripts then attempt static localization. All conclusions land in `key_all.json` and local unpacking artifacts (`*.dec` / `*.modules/`, not shipped with the repository).
 
 Three core conclusions:
 
@@ -448,7 +448,7 @@ python d750_bitrate_verify.py `
   --key key_all.json --json D750_0115.hq64.out\verify_report.json
 ```
 
-Results: module CRC `0x12CA → 0x4314`; package CRC remains `0x7EE4` due to the CRC residue property; decrypted image differs in only 36 B, 0 B outside the fields. The commands run locally and write to `D750_0115.hq64.out/`; the repository keeps only `REPORT.md` and the two JSON reports there (`*.bin` / `*.dec` / modules are not committed). Full report: [`REPORT.md`](D750_0115.hq64.out/REPORT.md). **Camera-side encoder/card write/playback not yet verified.**
+Results: module CRC `0x12CA → 0x4314`; package CRC remains `0x7EE4` due to the CRC residue property; decrypted image differs in only 36 B, 0 B outside the fields. The commands run from the repository root (decrypt the image first per [§5.2](#52-one-click-decrypt--carve-recommended)) and write to `D750_0115.hq64.out/`; the repository keeps only `REPORT.md` and the two JSON reports there (`*.bin` / `*.dec` / modules are not committed). Full report: [`REPORT.md`](D750_0115.hq64.out/REPORT.md). **Camera-side encoder/card write/playback not yet verified.**
 
 ---
 
