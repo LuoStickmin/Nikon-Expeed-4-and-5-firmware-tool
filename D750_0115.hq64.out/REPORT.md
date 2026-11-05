@@ -146,7 +146,7 @@ all checks passed
 ## 5. 复现命令
 
 ```powershell
-cd C:\Users\23795\Downloads\DSLR
+cd Nikon-Expeed-4-and-5-firmware-tool    # 仓库根目录；样本需自备
 
 # 1) 只检查 stock 表
 python d750_bitrate_patch.py `
