@@ -1,9 +1,12 @@
 # Nikon Expeed 4 / 5 DSLR Firmware Unpacking
 
 [中文](README.md) · [English](README.en.md)
-> Starting from the official update package `.bin`, **using only the ciphertext itself**, recover the vendor-level XOR key tables, open the container, verify the two-level CRC, carve out the modules, and leave behind a set of static-analysis probes.
 
-#Update Note: Nov.5 2026 Uploaded repacking codes, and D750 High Bitrate Video Test. Details are on - [5.8] and - [5.9]
+> Starting from the official update package `.bin`, **using only the ciphertext itself**, recover the vendor-level XOR key tables, open the container, verify the two-level CRC, carve out the modules, and leave behind a set of static-analysis probes.
+>
+> Repository: <https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool>
+
+**Update (2026-11-05):** added the repacking tool ([§5.8](#58-repacking)) and the D750 high-bitrate patch/verification ([§5.9](#59-d750-high-bitrate-modification-6460-mbps)).
 
 ![scope](https://img.shields.io/badge/scope-Expeed%204%2F5%20DSLR-blue)
 ![verified](https://img.shields.io/badge/verified-12%20models%20%7C%2022%20images-brightgreen)
@@ -31,26 +34,26 @@
 
 ## 1. Project Overview
 
-This directory is a **reproducible research record**: given an Expeed 4/5-generation DSLR firmware `.bin`, it recovers the three-layer XOR key tables shared by this generation *without any previously published key*, opens the container, uses the container's own CRC to prove "we decrypted it correctly", then carves each module out; a set of probe scripts then attempt static localization. All conclusions land in artifacts like `key_all.json`, `*.dec`, and `*.modules/`.
+This repository is a **reproducible research record and toolkit**: given an Expeed 4/5-generation DSLR firmware `.bin`, it recovers the three-layer XOR key tables shared by this generation *without any previously published key*, opens the container, uses the container's own CRC to prove "we decrypted it correctly", then carves each module out; a set of probe scripts then attempt static localization. All conclusions land in artifacts like `key_all.json`, `*.dec`, and `*.modules/`.
 
 Three core conclusions:
 
-1. **The key is a vendor-level static table, not a per-camera or per-version secret.** The three 256-byte tables (`T1` / `T2` / `T3`) in `key_all.json` pass directory validation and both CRC levels on 12 models and 22 firmware versions; the 4 samples in this directory also all re-validate (see [§8](#8-sample-review)).
+1. **The key is a vendor-level static table, not a per-camera or per-version secret.** The three 256-byte tables (`T1` / `T2` / `T3`) in `key_all.json` pass directory validation and both CRC levels on 12 models and 22 firmware versions; the author's four local samples also all re-validate (the samples are not shipped with this repository; see [§8](#8-sample-review)).
 2. **The encryption is a "byte-wise XOR + 16 MiB periodic" keystream.** No diffusion, no IV, no per-device key; the large runs of `0x00` / `0xFF` padding in the image are themselves known plaintext. This is equivalent to a classical "many-time pad + known plaintext" scenario, and the key can be recovered from ciphertext statistics alone.
 3. **The container ships an almost-never-wrong oracle.** The strict big-endian directory structure + per-module CRC16 + package-wide CRC turns "is the key right?" into a yes/no question; every step of the recovery algorithm is designed around this oracle.
 
-### 1.1 What this directory can do
+### 1.1 What this repository can do
 
 - Identify and decrypt Expeed 4/5 DSLR firmware update packages (two header wrappers).
 - **Blindly recover** key tables from a ciphertext corpus, and only write them to disk after full CRC validation.
 - Parse the module directory and carve out `a*` (Firmware A), `b*` (Firmware B), `_wma_*` (wireless module), and other components.
 - Run preliminary static analysis — entropy, keywords, code density, pointer tables, disassembly — on the carved modules.
 
-### 1.2 What this directory does not do
+### 1.2 What this repository does not do
 
 - It does not cover the new Z-series wrapper (`0x260` tag) — the tool explicitly recognizes and refuses it; payload encryption is unbroken.
 - It does not re-sign or provide any flashing workflow; CRC validation only proves integrity, **not authenticity**. The upstream repository [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool)'s Z 8/Z 9 repacking and signing-key recovery (`repack_firmware.py`, `solve_signature_e7.py`) is not included here.
-- It does not contain the full original encrypted corpus (only one encrypted sample), so the key recovery cannot be re-run in place inside this directory.
+- It does not ship firmware samples or the full encrypted corpus (only `key_all.json` and the scripts), so key recovery cannot be rerun inside this repository; bring your own image.
 
 ---
 
@@ -97,7 +100,7 @@ The directory parser (`decrypt_firmware.parse_table`) enforces: `directory_size 
 
 ### 2.4 Three Wrappers (Header Offsets)
 
-| Wrapper | File header | Space tag position | Body start | Samples in this directory |
+| Wrapper | File header | Space tag position | Body start | Author's local samples (not shipped) |
 | --- | --- | --- | --- | --- |
 | **A** | none | `0x00` | `0x00` | `D750_0115.bin` (encrypted original), `D810_0114.bin` (plaintext container) |
 | **B** | 32-byte header: 20B SHA-1 digest + 12B unidentified | `0x20` | `0x20` | `D850_0131.bin`, `D5__0150.bin` (both plaintext containers) |
@@ -105,7 +108,7 @@ The directory parser (`decrypt_firmware.parse_table`) enforces: `directory_size 
 
 Key point: **the keystream phase is anchored at the space tag (body start) as 0**, independent of the header length. Hence the same tables handle both wrappers A and B; `key_all.json`'s `sources[].header` records each image's body start.
 
-Wrapper B's 32-byte header, per the upstream [Firmware format](https://github.com/WonderLantern/nikon-fw-key-tool#firmware-format) definition, is `[20-byte SHA-1 digest][12-byte unidentified]`, with the digest satisfying `header[0:20] == SHA1(decrypted_body || K8)`; `K8` is a model-specific 8-byte key, so this is a "keyed digest", not an asymmetric signature. The tools here only decrypt/carve and **do not verify or recompute** it; the measured DSLR sample's prefix equals neither `SHA1(body)` nor `SHA1(body[:-16])`, consistent with keyed-digest behavior, but the DSLR `K8` is unknown and this directory has not verified it. The upstream covers the legacy wrapper with the tag at `0x20`; the DSLR old-wrapper with the tag at `0x00` (D750/D810-class) is the adaptation added by this directory (`decrypt_dslr*.py`).
+Wrapper B's 32-byte header, per the upstream [Firmware format](https://github.com/WonderLantern/nikon-fw-key-tool#firmware-format) definition, is `[20-byte SHA-1 digest][12-byte unidentified]`, with the digest satisfying `header[0:20] == SHA1(decrypted_body || K8)`; `K8` is a model-specific 8-byte key, so this is a "keyed digest", not an asymmetric signature. The tools here only decrypt/carve and **do not verify or recompute** it; the measured DSLR sample's prefix equals neither `SHA1(body)` nor `SHA1(body[:-16])`, consistent with keyed-digest behavior, but the DSLR `K8` is unknown and this repository has not verified it. The upstream covers the legacy wrapper with the tag at `0x20`; the DSLR old-wrapper with the tag at `0x00` (D750/D810-class) is the adaptation added by this repository (`decrypt_dslr*.py`).
 
 ---
 
@@ -213,7 +216,7 @@ Upstream `nikon-fw-key-tool` records the minimal sufficient set in `extract_key.
 - Even if the structure happens to pass, the package CRC covers `body[:-16]` (including the space tag, directory, and all module CRCs). However, the residue property means "modify payload + fix module CRC" does not change the package CRC, so validation must also check module CRC; the probability a random error hits the package CRC is ~`1/65536`, actually far lower.
 - The two-level CRC also provides localization: module CRC tells which segment is bad, package CRC tells the whole thing is bad.
 
-But it must be emphasized: **CRC is an integrity check, not a signature.** "Structurally self-consistent" only means the bytes match the vendor image without corruption; it does not prove origin and does not prevent forgery (anyone can recompute CRC after modifying). Whether the camera/updater performs signature verification is not covered by this directory.
+But it must be emphasized: **CRC is an integrity check, not a signature.** "Structurally self-consistent" only means the bytes match the vendor image without corruption; it does not prove origin and does not prevent forgery (anyone can recompute CRC after modifying). Whether the camera/updater performs signature verification is not covered by this repository.
 
 ---
 
@@ -257,7 +260,7 @@ Another corroboration: the first 16 bytes of these three tables' SHA-256 match t
 | Input | Detection | Handling | Status |
 | --- | --- | --- | --- |
 | Encrypted original, tag at `0x00` | `raw[0:0x20]` all `0x20` | `HDR=0`, XOR body | ✅ Verified (`D750_0115.bin`) |
-| Encrypted original, tag at `0x20` | `raw[0x20:0x40]` all `0x20` | `HDR=0x20`, XOR body | ✅ Regression-verified (no encrypted sample in this directory) |
+| Encrypted original, tag at `0x20` | `raw[0x20:0x40]` all `0x20` | `HDR=0x20`, XOR body | ✅ Regression-verified (no encrypted sample shipped) |
 | **Plaintext container** of the same structure | body directory parses directly | Skip XOR, carve by directory | ✅ Verified (D810 / D850 / D5 samples) |
 | Z-series new wrapper | 32 spaces at `0x260` | Refuse | ❌ Unbroken |
 | Bare module / archive / updater exe | No space tag | Refuse | ❌ Extract first |
@@ -267,7 +270,7 @@ Another corroboration: the first 16 bytes of these three tables' SHA-256 match t
 - **Models not included are unverified.** Models of the same Expeed 4/5 generation but not in the table above, as well as earlier (Expeed 3) or later (Z-series) models, cannot be assumed applicable; try `extract_key_mix.py`, but must pass CRC validation first.
 - **Key not distinguishing models ≠ container not distinguishing models.** The wrapper A/B difference (32-byte header) must be handled by `HDR` or auto-detection, otherwise decryption is globally misaligned.
 - **Plaintext containers must not be re-decrypted.** `decrypt_dslr2.py` unconditionally XORs; on a plaintext container this destroys the directory.
-- **Cannot repack/re-sign.** CRC can be recomputed, but the 32-byte header also carries a keyed SHA-1 digest (`K8`), which this directory cannot recompute; hence no flashable artifact.
+- **Limits of repacking.** `repack_firmware.py` can rebuild the directory, recompute module and package CRCs, and re-encrypt according to the input; the result passes `validate_firmware`'s directory/CRC checks. But wrapper B's 32-byte header carries a keyed SHA-1 digest (`K8`); the DSLR `K8` is unknown, so without `--k8` the digest is preserved as-is and marked `STALE`. **This is not re-signing and does not guarantee the camera accepts it**, so the repository still ships no flashable artifact.
 - **Depends on corpus statistics.** Stages 3/5 assume fill is predominantly `0x00`; if a 64 KiB block is predominantly `0xFF`, manual verification is needed (`fill_t3.py` and CRC enumeration exist for this).
 - **Scheme is determined by wrapper, not by EXPEED generation.** Upstream confirmed Z 8/Z 9 (EXPEED 7) still use the old wrapper, while Z f/Z 5II/Z 50II/Z 6III/ZR use the new scheme; "Expeed 4/5" here is just the customary corpus-scope label and cannot be used to infer model or generation.
 
@@ -278,11 +281,14 @@ Another corroboration: the first 16 bytes of these three tables' SHA-256 match t
 ### 5.1 Dependencies
 
 ```bash
+git clone https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool.git
+cd Nikon-Expeed-4-and-5-firmware-tool
+
 pip install numpy        # required (decrypt, carve, statistics)
 pip install capstone     # optional, only for analyze_core.py / disasm_*.py
 ```
 
-Dev environment is Python 3.12 + NumPy 2.3.5; pure Python, runs on Windows / Linux / macOS. Except for one-off research scripts, the main flow has no hardcoded absolute paths.
+Dev environment is Python 3.12 + NumPy 2.3.5; pure Python, runs on Windows / Linux / macOS. The commands below assume the repository root; except for one-off research scripts, the main flow has no hardcoded absolute paths.
 
 ### 5.2 One-Click Decrypt + Carve (recommended)
 
@@ -295,7 +301,7 @@ python decrypt_dslr2.py \
     --out D750_0115.dec
 ```
 
-This command has been measured in this directory: output matches the repository's `D750_0115.dec` **byte-for-byte**, and all three modules match `D750_0115.dec.modules/` exactly (see [§5.7](#57-an-actual-run)).
+This command was measured on the author's `D750_0115.bin`: the output matched the then-current `D750_0115.dec` **byte-for-byte**, and all three modules matched `D750_0115.dec.modules/` exactly (see [§5.7](#57-an-actual-run)). The repository does not ship those samples or artifacts; bring your own image.
 
 ### 5.3 Strict Validation Mode
 
@@ -316,7 +322,7 @@ Note:
 
 ### 5.4 When Input Is Already a Plaintext Container
 
-The `D810_0114.bin`, `D850_0131.bin`, `D5__0150.bin` in this directory are already plaintext containers (directory and module CRC pass without decryption). Do not XOR; carve by directory and validate directly:
+The author's local `D810_0114.bin`, `D850_0131.bin`, `D5__0150.bin` are already plaintext containers (samples are not shipped; directory and module CRC pass without decryption). Do not XOR; carve by directory and validate directly:
 
 ```python
 import binascii, os, struct
@@ -354,7 +360,7 @@ python extract_key_dslr.py --firmware-dir corpus --out key.json
 python extract_key_mix.py  --firmware-dir corpus --out key.json
 ```
 
-After running, compare `key.json`'s `self_check` against the three hash lines in [§4.1](#41-verified-models-and-versions); matching means correct recovery. This directory **does not include** that corpus (only one encrypted sample), so this step cannot be reproduced in place.
+After running, compare `key.json`'s `self_check` against the three hash lines in [§4.1](#41-verified-models-and-versions); matching means correct recovery. The repository **does not ship** that corpus or any firmware sample (only `key_all.json` and scripts), so this step must be run with your own images.
 
 Key file fields: `scheme` (scheme description), `period_bytes` (`1<<24`), `T1/T2/T3` (each 256 bytes hex), `sources` (each image's `sha256` and `header`), `self_check` (SHA-256 of the three tables). The `key_all.json` produced by `finalize_key.py` additionally has a `validated` list.
 
@@ -367,6 +373,8 @@ Key file fields: `scheme` (scheme description), `period_bytes` (`1<<24`), `T1/T2
 | `3` | Key file rejected (missing table, wrong length, self_check mismatch) | `load_key` |
 | `4` | Not this scheme's image (no space tag, or hits `0x260` new scheme) | `check_scheme` |
 | `5` | Structure or CRC validation failed (no files written) | `validate_firmware` |
+| `7` | Patch/replace argument could not be applied (no files written) | `repack_firmware.py` |
+| `8` | Rebuilt output failed self-validation (nothing written) | `repack_firmware.py` |
 
 `extract_key.py` additionally expresses regression status via return value: `0` means all three tables match built-in `EXPECTED_SHA`, `1` means drift (still writes the key, but prints a warning).
 
@@ -440,7 +448,7 @@ python d750_bitrate_verify.py `
   --key key_all.json --json D750_0115.hq64.out\verify_report.json
 ```
 
-Results: module CRC `0x12CA → 0x4314`; package CRC remains `0x7EE4` due to the CRC residue property; decrypted image differs in only 36 B, 0 B outside the fields. The commands above run from the code project root `DSLR/`, writing to the root's `D750_0115.hq64.out/`; this project contains an after-the-fact copy. Full report: [`REPORT.md`](D750_0115.hq64.out/REPORT.md). **Camera-side encoder/card write/playback not yet verified.**
+Results: module CRC `0x12CA → 0x4314`; package CRC remains `0x7EE4` due to the CRC residue property; decrypted image differs in only 36 B, 0 B outside the fields. The commands run locally and write to `D750_0115.hq64.out/`; the repository keeps only `REPORT.md` and the two JSON reports there (`*.bin` / `*.dec` / modules are not committed). Full report: [`REPORT.md`](D750_0115.hq64.out/REPORT.md). **Camera-side encoder/card write/playback not yet verified.**
 
 ---
 
@@ -449,39 +457,36 @@ Results: module CRC `0x12CA → 0x4314`; package CRC remains `0x7EE4` due to the
 ### 6.1 Directory Tree
 
 ```text
-DSLR/
-├── key_all.json                  # artifact: 22-image regression-passing key set (T1/T2/T3 + sources + self_check)
-├── D750_0115.bin                 # the only encrypted original (wrapper A)
-├── D750_0115.dec                 # decrypted artifact (21,552,187 B)
-├── D750_0115.dec.modules/        # 3 carved modules
-│   ├── a1010_011100.bin
-│   ├── _wma_ver01.00.00
-│   └── b1010_115a.bin
-├── D810_0114.bin(.modules/)      # plaintext container sample (wrapper A)
-├── D850_0131.bin(.modules/)      # plaintext container sample (wrapper B)
-├── D5__0150.bin(.modules/)       # plaintext container sample (wrapper B, 48 MB)
+.
+├── .github/ISSUE_TEMPLATE/
+│   ├── config.yml
+│   └── validation-report.yml
+├── README.md / README.en.md
+├── CONTRIBUTING.md
+├── SECURITY.md
+├── VALIDATION_MATRIX.md
+├── PUBLISH_CHECKLIST.md / ISSUES_TO_CREATE.md / README_TOP_SNIPPET.md
+├── LICENSE                       # GPL-3.0
+├── .gitignore                    # firmware/derived artifacts excluded
+├── key_all.json                  # 22-image regression-passing key set (T1/T2/T3 + sources + self_check)
 ├── extract_key.py                # blind key recovery (five stages) + full validation
-├── decrypt_firmware.py           # decrypt + validate + directory parse (main library)
-├── decrypt_dslr.py               # thin wrapper: HDR=0
 ├── extract_key_dslr.py           # thin wrapper: HDR=0
 ├── extract_key_mix.py            # mixed-HDR corpus key recovery
-├── decrypt_dslr2.py              # auto-detect HDR + carve modules (artifact generator)
-├── repack_firmware.py            # rebuild, patch, re-encrypt, and validate the container
-├── d750_bitrate_patch.py         # patch D750 1080p bitrate table
-├── d750_bitrate_verify.py        # independent verify of the bitrate patch
+├── decrypt_firmware.py           # decrypt + validate + directory parse (main library)
+├── decrypt_dslr.py               # thin wrapper: HDR=0
+├── decrypt_dslr2.py              # auto-detect HDR + carve modules
+├── repack_firmware.py            # rebuild directory/CRCs, patch/replace modules, re-encrypt
+├── d750_bitrate_patch.py         # patch D750 1080p HQ bitrate table to 64/60 Mbps
+├── d750_bitrate_verify.py        # independent verification of the patched container/CRCs/table
 ├── fill_t3.py                    # missing blocks: heuristic scoring + combinatorial enumeration
-├── solve212.py / solve212b.py / solve212c.py   # missing-block pinpoint brute force (three validators)
+├── solve212.py / solve212b.py / solve212c.py   # missing-block pinpoint brute force
 ├── finalize_key.py               # merge corrections, write key_all.json
+├── tests/test_d750_bitrate_patch.py   # bitrate patch unit tests (skipped without fixture)
+├── D750_0115.hq64.out/           # REPORT.md + patch_report.json + verify_report.json (no binaries)
 ├── dump_toc.py                   # print D750_0101 decrypted directory
-├── analyze_core.py               # entropy / ARM ratio / keywords / strings / disassembly
-├── find_base.py / check_base.py / scan_addrs.py   # load base & address density probes
-├── scan_code.py                  # per-64 KiB ARM/Thumb code density scoring
-├── disasm_thumb.py / disasm_vtable.py             # capstone targeted disassembly
-├── search_strings.py             # feature keyword search
-├── find_refs.py                  # absolute/relative pointer cross-reference of strings
-├── dump_region.py                # region hexdump + 0x90xxxxxx word scan
-├── find_ptrtables.py             # contiguous odd pointers (Thumb function table) scan
-└── __pycache__/                  # Python 3.12 cache
+├── analyze_core.py / find_base.py / check_base.py / scan_addrs.py   # static-analysis probes
+├── scan_code.py / disasm_thumb.py / disasm_vtable.py
+└── search_strings.py / find_refs.py / dump_region.py / find_ptrtables.py
 ```
 
 ### 6.2 Script Inventory
@@ -515,7 +520,7 @@ DSLR/
 | `find_ptrtables.py` | analysis | find ≥4 contiguous `0x90000000..0x90200000` odd words (Thumb function table) |
 | `disasm_vtable.py` | analysis | disassemble vtable slots in a region one by one |
 
-> `extract_key.py` and `decrypt_firmware.py` are **copied verbatim** from [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool) (GPL-3.0) without modification; the rest are adaptations and research patches by this directory on the DSLR corpus. See [§11](#11-references).
+> `extract_key.py` and `decrypt_firmware.py` are **copied verbatim** from [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool) (GPL-3.0) without modification; the rest are adaptations and research patches by this repository on the DSLR corpus. See [§11](#11-references).
 
 ---
 
@@ -640,9 +645,9 @@ D850_0131.bin  6473bba8a154cb8cb5ff27345bb84a8513593e547fbe63a9dfce7b9d288f53f4
 D5__0150.bin   db8103e64d9f3c16391a5f7bde8a79cd1a59d78858e9c57871e325eb98df3ed1
 ```
 
-> **Important**: In `key_all.json`'s `sources`, the SHA-256 of `D810_0114`, `D850_0131`, `D5__0150` **differ** from the same-named files in this directory (e.g., `D850_0131` records `4599b238…`, local is `6473bba8…`). This means `sources` records another batch of **encrypted originals**; the three here are plaintext containers (original 32-byte header retained, presumably decryption products). Only `D750_0115.bin`'s hash matches `sources` — it is the true encrypted input.
+> **Important**: In `key_all.json`'s `sources`, the SHA-256 of `D810_0114`, `D850_0131`, `D5__0150` **differ** from the author's local same-named files (e.g., `D850_0131` records `4599b238…`, local is `6473bba8…`). This means `sources` records another batch of **encrypted originals**; the author's three local files are plaintext containers (original 32-byte header retained, presumably decryption products; the samples are not shipped with this repository). Only `D750_0115.bin`'s hash matches `sources` — it is the true encrypted input.
 
-Therefore: **do not test the decryptor with this directory's D810/D850/D5** — they do not need decryption, and running XOR only destroys the directory.
+Therefore: **do not test the decryptor with plaintext-container samples** — they do not need decryption, and running XOR only destroys the directory.
 
 ### 8.2 Carved Modules
 
@@ -666,7 +671,7 @@ Module naming pattern: `a<platform>_<version>` / `b<platform>_<version>`. D750's
 
 ### 8.3 New Observations During Review
 
-- `_wt5160_.bin`'s first 32 bytes are ` 061WT-5` + padding; from `0x20` is standard gzip (`1f 8b 08`). Decompression yields 37,847,040 bytes, starting with `fw_data.bin`, containing `ARMv7 Processor`. This indicates **another compression layer nested in the container**; this directory does not expand it further.
+- `_wt5160_.bin`'s first 32 bytes are ` 061WT-5` + padding; from `0x20` is standard gzip (`1f 8b 08`). Decompression yields 37,847,040 bytes, starting with `fw_data.bin`, containing `ARMv7 Processor`. This indicates **another compression layer nested in the container**; this repository does not expand it further.
 - `_wma_*` is not WMA audio, it is **WLAN/Bluetooth module firmware**: D750 version has `WLAN1`, `wlanapi_init()`; D850 version is additionally wrapped in ST's `DfuSe`.
 - The strict validator's false positive on `D750_0115.bin` occurs only on the `_wma` entry's 8-byte `tag` (value `crc.bin`). All other fields (count, dirsize, module chain, module CRC, package CRC) are all correct.
 
@@ -706,7 +711,7 @@ Corpus with predominantly `0x00` fill works directly; if some block is predomina
 
 ### 9.7 The 16 MiB Period Is a Feature, Not a Bug
 
-Files beyond 16 MiB reuse the keystream. This is a cryptographic weakness and the reason the 48 MB-class D5 image in `key_all.json` opens with the same tables; do not mistake "period reuse" for a decryptor index error. Note that `D5__0150.bin` in this directory is already a plaintext container and must not be re-decrypted.
+Files beyond 16 MiB reuse the keystream. This is a cryptographic weakness and the reason the 48 MB-class D5 image in `key_all.json` opens with the same tables; do not mistake "period reuse" for a decryptor index error. Note that the author's local `D5__0150.bin` is already a plaintext container and must not be re-decrypted.
 
 ### 9.8 Version-Number Warning Is a Hint
 
@@ -724,11 +729,11 @@ Files beyond 16 MiB reuse the keystream. This is a cryptographic weakness and th
 
 ## 10. Security and Compliance
 
-- **Firmware copyright belongs to Nikon.** The `.bin` / `.dec` / `.modules` in this directory are for personal research archival only and should not be publicly distributed with the repository or used commercially. When publishing on GitHub, add binaries to `.gitignore` and keep only scripts, `key_all.json`, and documentation.
+- **Firmware copyright belongs to Nikon.** The repository contains no `.bin` / `.dec` / `.modules` (`.gitignore` excludes them); the author's local copies are for personal research archival only and must not be publicly distributed or used commercially.
 - **Use only on devices you own.** Unpacking/analysis is interoperability research; do not use it to bypass copyright protection, produce, and distribute modified firmware.
 - **Do not flash modified images directly.** Container CRC can be recomputed, but whether the camera or updater performs signature verification or model checks is unknown; wrong firmware may brick the device and void the warranty.
 - **CRC is not a signature.** All "validation passed" here only means structure and checksums are self-consistent, not that the source is trustworthy.
-- **License**: `extract_key.py` and `decrypt_firmware.py` are copied verbatim from [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool), which uses **GPL-3.0** (with LICENSE file). These two files and their derivatives must continue to be distributed under GPL-3.0 with copyright/license notices preserved; new scripts that form a combined work with them must also satisfy GPL-3.0 when distributed — confirm with the author. The upstream repository itself contains no firmware or derived keys, whereas this directory contains firmware samples and `key_all.json` — confirm compliance before publishing.
+- **License**: the full **GPL-3.0** text is in [`LICENSE`](LICENSE). `extract_key.py` and `decrypt_firmware.py` are copied verbatim from [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool), which uses GPL-3.0. These two files and their derivatives must continue to be distributed under GPL-3.0 with copyright/license notices preserved; new scripts that form a combined work with them must also satisfy GPL-3.0 when distributed — confirm with the author. The upstream repository itself contains no firmware or derived keys; this repository contains only `key_all.json`, not firmware samples.
 
 ---
 
@@ -736,14 +741,14 @@ Files beyond 16 MiB reuse the keystream. This is a cryptographic weakness and th
 
 ### Upstream project
 
-The `extract_key.py` and `decrypt_firmware.py` in this directory are **copied verbatim** from [**WonderLantern/nikon-fw-key-tool**](https://github.com/WonderLantern/nikon-fw-key-tool) ([README](https://github.com/WonderLantern/nikon-fw-key-tool/blob/main/README.md), GPL-3.0):
+The `extract_key.py` and `decrypt_firmware.py` in this repository are **copied verbatim** from [**WonderLantern/nikon-fw-key-tool**](https://github.com/WonderLantern/nikon-fw-key-tool) ([README](https://github.com/WonderLantern/nikon-fw-key-tool/blob/main/README.md), GPL-3.0):
 
 - Both files are byte-identical to the version on that repo's `main` branch: `extract_key.py` 14,643 B (git blob `474941036131b2388135688db86d8533e59f1b92`), `decrypt_firmware.py` 9,754 B (git blob `14128ca1240542634554945458b128b8b93c8f26`).
 - The directory/CRC rules, the Z-series regression samples in `KNOWN` / `MINIMAL`, the `0x260` new-scheme check, and the 20-byte header digest and `K8` explanation all come from that project's code and README.
 - Upstream's scope is Z 5 / Z 6 / Z 6II / Z 7 / Z 7II / Z 8 / Z 9 / Z 30 / Z 50 / Z fc; of these, `repack_firmware.py` and `solve_signature_e7.py` (Z 8/Z 9 header-digest recomputation and signing-key recovery) are **not included** here.
 - Upstream README sections: [Firmware format](https://github.com/WonderLantern/nikon-fw-key-tool#firmware-format), [XOR encryption](https://github.com/WonderLantern/nikon-fw-key-tool#xor-encryption), [Checksums and header digest](https://github.com/WonderLantern/nikon-fw-key-tool#checksums-and-header-digest).
 
-What this directory adds on top: adapting `HDR` to the two DSLR tag positions (`0x00` / `0x20`), merging multi-model corpus to recover and finalize `key_all.json`, filling the 3 missing `T3` blocks, producing `.dec` / `.modules` artifacts, and a set of static-analysis probes.
+What this repository adds on top: adapting `HDR` to the two DSLR tag positions (`0x00` / `0x20`), merging multi-model corpus to recover and finalize `key_all.json`, filling the 3 missing `T3` blocks, producing `.dec` / `.modules` artifacts, and a set of static-analysis probes.
 
 ### Others
 

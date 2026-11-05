@@ -36,17 +36,24 @@
 
 ## 第一次运行
 
-仓库 **不附带固件二进制**（见 `.gitignore`）。没有加密镜像时，可以先用明文容器样本跑通切片与静态分析：
+仓库 **不附带固件二进制或样本**（见 `.gitignore`）。先拉取仓库；如果本地已有明文容器样本，可以先用它们跑通切片与静态分析：
 
-```python
-# 见 README §5.4，直接对 D810_0114.bin / D850_0131.bin / D5__0150.bin 切片
+```bash
+git clone https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool.git
+cd Nikon-Expeed-4-and-5-firmware-tool
 ```
 
-注意：这三份是 **明文容器**，不要对它们跑 `decrypt_dslr2.py`（会二次 XOR 打烂目录，见 README §9.5）。
+```python
+# 见 README §5.4，直接对本地明文容器切片（示例文件名为 D810_0114.bin 等）
+```
+
+注意：明文容器不要跑 `decrypt_dslr2.py`（会二次 XOR 打烂目录，见 README §9.5）。
 
 有加密镜像时：
 
 ```bash
+git clone https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool.git
+cd Nikon-Expeed-4-and-5-firmware-tool
 pip install numpy
 python decrypt_dslr2.py --key key_all.json --firmware <image>.bin --out <image>.dec
 ```
@@ -120,17 +127,24 @@ From lowest to highest barrier:
 
 ## First run
 
-The repository **does not ship firmware binaries** (see `.gitignore`). Without an encrypted image, use the plaintext container samples to exercise carving and static analysis:
+The repository **does not ship firmware binaries or samples** (see `.gitignore`). Clone it first; if you already have plaintext container samples locally, use them to exercise carving and static analysis:
 
-```python
-# See README §5.4, carve directly on D810_0114.bin / D850_0131.bin / D5__0150.bin
+```bash
+git clone https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool.git
+cd Nikon-Expeed-4-and-5-firmware-tool
 ```
 
-Note: these three are **plaintext containers**; do not run `decrypt_dslr2.py` on them (it double-XORs and destroys the directory, see README §9.5).
+```python
+# See README §5.4, carve directly on local plaintext containers (example names: D810_0114.bin, ...)
+```
+
+Note: do not run `decrypt_dslr2.py` on plaintext containers (it double-XORs and destroys the directory, see README §9.5).
 
 With an encrypted image:
 
 ```bash
+git clone https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool.git
+cd Nikon-Expeed-4-and-5-firmware-tool
 pip install numpy
 python decrypt_dslr2.py --key key_all.json --firmware <image>.bin --out <image>.dec
 ```

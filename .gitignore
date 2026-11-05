@@ -1,0 +1,11 @@
+# Firmware images and derived artifacts must never be committed.
+*.bin
+*.dec
+*.modules/
+*.pyc
+__pycache__/
+
+# Local patch outputs in the sample report directory; keep REPORT.md / *.json.
+D750_0115.hq64.out/*.bin
+D750_0115.hq64.out/*.dec
+D750_0115.hq64.out/*.modules/

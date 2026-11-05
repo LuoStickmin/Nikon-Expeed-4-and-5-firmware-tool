@@ -26,8 +26,8 @@
 
 ## 可运行性 / Runnability
 
-- [ ] 从零 clone 后，`pip install numpy` + README §5.2 的命令能跑通（用你自己的样本验证）
-      Fresh clone + `pip install numpy` + README §5.2 command works (verified with your sample)
+- [ ] 从 `https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool.git` clone 后，`pip install numpy` + README §5.2 的命令能跑通（用你自己的样本验证）
+      Fresh clone from `https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool.git` + `pip install numpy` + README §5.2 command works (verified with your sample)
 - [ ] 无加密样本时，README §5.4 的切片代码能直接跑通明文容器
       Without encrypted sample, README §5.4 carving runs on plaintext container
 - [ ] `CONTRIBUTING.md` 的「第一次运行」两步都实测过

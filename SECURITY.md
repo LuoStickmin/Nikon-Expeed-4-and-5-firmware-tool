@@ -8,7 +8,7 @@
 - 解密 / 目录解析 / 模块切片脚本
 - 一组静态分析探针
 
-本仓库 **不产出** 可刷写镜像，**不提供** 重打包或重签名流程(稍后可能会有分支项目），**不涉及** 绕过相机或更新器的验签机制。
+本仓库 **不产出** 可刷写镜像，**不重签名**，**不涉及** 绕过相机或更新器的验签机制。仓库中的 `repack_firmware.py` 仅用于研究性重建容器（重算模块/包 CRC、可选重新加密）；包装 B 的头部摘要依赖机型专属 `K8`，未知时只能原样保留并标记 `STALE`，因此重打包产物**不保证被相机接受**。
 
 `key_all.json` 中的三张表只用于解开官方更新包、复现容器结构。CRC 通过只证明完整性，不证明真实性。
 
@@ -26,7 +26,7 @@
 
 ## 不在支持范围
 
-- 相机 / 更新器的实际验签机制（本目录未研究）
+- 相机 / 更新器的实际验签机制（本仓库未研究）
 - Z 系列 `0x260` 新包装的密钥（未破）
 - 刷机、变砖、保修相关的支持请求
 - 任何“帮我解某个具体固件”的定制需求
@@ -47,7 +47,7 @@ This repository is an **interoperability research record for Nikon Expeed 4/5 fi
 - Decryption / directory parsing / module carving scripts
 - A set of static-analysis probes
 
-This repository **does not** produce flashable images, **does not** provide repacking or re-signing workflows, and **does not** involve bypassing camera or updater signature verification.
+This repository **does not** produce flashable images, **does not** re-sign firmware, and **does not** involve bypassing camera or updater signature verification. `repack_firmware.py` exists only for research-grade container rebuilding (recompute module/package CRCs, optional re-encryption); wrapper B's header digest depends on the model-specific `K8`, so without it the digest is preserved and marked `STALE`, and the rebuilt image is **not guaranteed to be accepted by a camera**.
 
 The three tables in `key_all.json` are only for opening official update packages and reproducing the container structure. Passing CRC only proves integrity, not authenticity.
 
