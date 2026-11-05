@@ -3,20 +3,13 @@
 [中文](README.md) · [English](README.en.md)
 > Starting from the official update package `.bin`, **using only the ciphertext itself**, recover the vendor-level XOR key tables, open the container, verify the two-level CRC, carve out the modules, and leave behind a set of static-analysis probes.
 
+#Update Note: Nov.5 2026 Uploaded repacking codes, and D750 High Bitrate Video Test. Details are on - [5.8] and - [5.9]
+
 ![scope](https://img.shields.io/badge/scope-Expeed%204%2F5%20DSLR-blue)
 ![verified](https://img.shields.io/badge/verified-12%20models%20%7C%2022%20images-brightgreen)
 ![python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
 ![numpy](https://img.shields.io/badge/numpy-required-013243?logo=numpy&logoColor=white)
 ![capstone](https://img.shields.io/badge/capstone-optional-lightgrey)
-
-> **Disclaimer**: This project is an **interoperability research record** for Nikon Expeed 4/5 firmware containers.
-> It does not provide flashable images and does not involve repacking, re-signing, or bypassing device signature checks.
-> Every "validation passed" statement only means the bytes are self-consistent in structure — it **does not prove authenticity**.
-> Use only on devices you own, with firmware you obtained legally. See [SECURITY.md](SECURITY.md) and [§10](#10-security-and-compliance).
-
-> **Want to contribute?** You do not need to understand the five-stage recovery algorithm —
-> if you have any encrypted Expeed 4/5 `.bin`, just run `extract_key_mix.py` once and post the three `self_check` SHA-256 lines to a [validation report](.github/ISSUE_TEMPLATE/validation-report.yml).
-> See [CONTRIBUTING.md](CONTRIBUTING.md); verified models are listed in [VALIDATION_MATRIX.md](VALIDATION_MATRIX.md).
 
 ---
 
@@ -393,6 +386,62 @@ done
 
 > `tail=crc.bin` is the 8-byte tag field of the **second** entry (`_wma_ver01.00.00`), legitimately present; `decrypt_dslr2.py` does not validate CRC, so it does not error. The strict validation in `decrypt_dslr.py` / `decrypt_firmware.py` falsely rejects it ([§9.1](#91-strict-validator-false-positive-on-crcbin-tag)).
 
+### 5.8 Repacking
+
+`repack_firmware.py` starts from the original image (plaintext or encrypted), can replace/patch module payloads, rebuilds the directory and both CRC levels, and decides whether to re-encrypt based on the input; before writing to disk it validates again with `decrypt_firmware.validate_firmware` and refuses to write if validation fails.
+
+```bash
+# 0) Bit-level round-trip self-test first: modify nothing, output must match input byte-for-byte
+python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
+    --out D750_0115.self.bin --selftest
+
+# 1) Rebuild from a carved module directory (modules may grow or shrink)
+python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
+    --modules-dir D750_0115.dec.modules --out D750_0115.repack.bin
+
+# 2) Patch a few bytes in place
+python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
+    --patch-module b1010_115a.bin:0x1000:deadbeef --out D750_0115.patched.bin
+
+# 3) Plaintext container -> encrypted form
+python repack_firmware.py --key key_all.json --firmware D850_0131.bin \
+    --encrypt --out D850_0131.enc.bin
+```
+
+Key points:
+
+- **Input type auto-detected**: first attempts full parsing as a plaintext container (directory + both CRC levels must pass); only on failure does it XOR the body and try again; it will not double-XOR a plaintext container ([§9.5](#95-plaintext-containers-get-double-xored)).
+- **Directory rebuild**: module order, 16-byte name fields, and tags are taken from the original image; `--modules-dir` / `--replace-module` allow changing module length, directory `start/length` are recalculated, and the last module still ends exactly at `body[-16]`.
+- **Tag zeroed by default**: D750's `_wma_ver01.00.00` originally has ASCII `crc.bin`, which would cause the strict validator to falsely reject ([§9.1](#91-strict-validator-false-positive-on-crcbin-tag)). By default the 8-byte tag is zeroed, so the output passes strict validation directly; to replicate the original image byte-for-byte add `--keep-tags` (the strict validator will still falsely reject it).
+- **Output form follows input by default**: encrypted in → encrypted out, plaintext in → plaintext out; `--encrypt` / `--plaintext` can force otherwise.
+- **Header digest**: Wrapper B's first 20 bytes are `SHA1(body || K8)`. DSLR's `K8` is unknown, so it is kept as-is by default; if the body changes, `STALE` is printed. If `K8` is recovered in the future, pass it with `--k8 k8.json` (`{"K8": "<16 hex>", "self_check": "<sha256>"}`); the script will first verify the original image's digest, then recompute for the new body.
+- See [§5.6](#56-exit-codes) for exit codes.
+
+### 5.9 D750 High Bitrate Modification (64/60 Mbps)
+
+`d750_bitrate_patch.py` changes D750_0115's 1080p "High quality" rows (entry 1/3/5/7/9) from `42/35`, `24/20` to 64/60 Mbps; `d750_bitrate_verify.py` independently decrypts, recomputes both CRC levels, and cross-checks 22 table entries:
+
+```powershell
+python d750_bitrate_patch.py `
+  --module D750_0115.dec.modules\b1010_115a.bin --check
+
+python d750_bitrate_patch.py `
+  --module D750_0115.dec.modules\b1010_115a.bin `
+  --out D750_0115.hq64.out\b1010_115a.hq64.bin
+
+python repack_firmware.py --key key_all.json --firmware D750_0115.bin `
+  --replace-module b1010_115a.bin=D750_0115.hq64.out\b1010_115a.hq64.bin `
+  --keep-tags --out D750_0115.hq64.out\D750_0115.hq64.bin
+
+python d750_bitrate_verify.py `
+  --stock D750_0115.bin `
+  --patched D750_0115.hq64.out\D750_0115.hq64.bin `
+  --module D750_0115.hq64.out\b1010_115a.hq64.bin `
+  --key key_all.json --json D750_0115.hq64.out\verify_report.json
+```
+
+Results: module CRC `0x12CA → 0x4314`; package CRC remains `0x7EE4` due to the CRC residue property; decrypted image differs in only 36 B, 0 B outside the fields. The commands above run from the code project root `DSLR/`, writing to the root's `D750_0115.hq64.out/`; this project contains an after-the-fact copy. Full report: [`REPORT.md`](D750_0115.hq64.out/REPORT.md). **Camera-side encoder/card write/playback not yet verified.**
+
 ---
 
 ## 6. Repository Layout
@@ -417,6 +466,9 @@ DSLR/
 ├── extract_key_dslr.py           # thin wrapper: HDR=0
 ├── extract_key_mix.py            # mixed-HDR corpus key recovery
 ├── decrypt_dslr2.py              # auto-detect HDR + carve modules (artifact generator)
+├── repack_firmware.py            # rebuild, patch, re-encrypt, and validate the container
+├── d750_bitrate_patch.py         # patch D750 1080p bitrate table
+├── d750_bitrate_verify.py        # independent verify of the bitrate patch
 ├── fill_t3.py                    # missing blocks: heuristic scoring + combinatorial enumeration
 ├── solve212.py / solve212b.py / solve212c.py   # missing-block pinpoint brute force (three validators)
 ├── finalize_key.py               # merge corrections, write key_all.json
@@ -442,6 +494,9 @@ DSLR/
 | `extract_key_dslr.py` | key recovery | thin wrapper fixing `HDR` to 0 |
 | `extract_key_mix.py` | key recovery | detect `0x00`/`0x20` per file, mixed corpus |
 | `decrypt_dslr2.py` | artifact | auto-detect + print directory + write `.modules` |
+| `repack_firmware.py` | artifact | rebuild directory/CRC, replace/patch modules, re-encrypt, validate |
+| `d750_bitrate_patch.py` | artifact | patch D750 1080p bitrate table |
+| `d750_bitrate_verify.py` | analysis | independently verify patched module, CRCs, and table entries |
 | `fill_t3.py` | fill | for missing blocks, score by 0x00/0xFF/printable/ARM weights, enumerate candidate combos with CRC oracle |
 | `solve212.py` | fill | fix 190/191, brute 212 (strict validation) |
 | `solve212b.py` | fill | same, switched to CRC-only validation (to bypass false positive) |
