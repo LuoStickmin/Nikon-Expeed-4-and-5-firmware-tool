@@ -1,14 +1,9 @@
 # Nikon Expeed 4 / 5 单反固件解包
 
-<div align="center">
-
-> **An extension of the WonderLantern project, powered by DeepSeek.**
-> 本项目是 WonderLantern 项目的延伸，由 DeepSeek 强力驱动。
-
-</div>
-
 [中文](README.md) · [English](README.en.md)
 > 从官方更新包 `.bin` 出发，**只用密文本身**恢复厂商级 XOR 密钥表，解开容器、校验两级 CRC、切出模块，并留下一组静态分析探针。
+
+#Update Note: Nov.5 2026 Uploaded repacking codes, and D750 High Bitrate Video Test. Details are on - [5.8] and - [5.9]
 
 ![scope](https://img.shields.io/badge/scope-Expeed%204%2F5%20DSLR-blue)
 ![verified](https://img.shields.io/badge/verified-12%20models%20%7C%2022%20images-brightgreen)
@@ -388,6 +383,62 @@ done
 ```
 
 > `tail=crc.bin` 是**第二个**条目（`_wma_ver01.00.00`）的 8 字节标签字段，合法存在；`decrypt_dslr2.py` 不校验 CRC，所以不会报错。用 `decrypt_dslr.py` / `decrypt_firmware.py` 的严格校验则会因此误拒（[§9.1](#91-严格校验器对-crcbin-标签误报)）。
+
+### 5.8 重新封包
+
+`repack_firmware.py` 从原始镜像出发（明文或密文均可），可替换/修补模块负载，重建目录与两级 CRC，并按输入决定是否重新加密；写盘前会再用 `decrypt_firmware.validate_firmware` 验一遍，不通过不落盘。
+
+```bash
+# 0) 先做位级往返自检：不改任何字节，产物必须与输入逐字节相同
+python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
+    --out D750_0115.self.bin --selftest
+
+# 1) 从切出的模块目录重建（允许模块变大变小）
+python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
+    --modules-dir D750_0115.dec.modules --out D750_0115.repack.bin
+
+# 2) 原地补几个字节
+python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
+    --patch-module b1010_115a.bin:0x1000:deadbeef --out D750_0115.patched.bin
+
+# 3) 明文容器 → 加密形态
+python repack_firmware.py --key key_all.json --firmware D850_0131.bin \
+    --encrypt --out D850_0131.enc.bin
+```
+
+要点：
+
+- **输入类型自动识别**：先按明文容器完整解析（目录 + 两级 CRC 全过才算），失败才对 body 做 XOR 再试一次；不会把明文容器二次 XOR（[§9.5](#95-明文容器会被解密器二次-xor)）。
+- **目录重建**：模块顺序、16 字节名称字段与 tag 都取自原镜像；`--modules-dir` / `--replace-module` 允许改变模块长度，目录里的 `start/length` 会重排，最后一个模块仍精确结束在 `body[-16]`。
+- **tag 默认清零**：D750 的 `_wma_ver01.00.00` 原本是 ASCII `crc.bin`，会让严格校验器误拒（[§9.1](#91-严格校验器对-crcbin-标签误报)）。默认把 8 字节 tag 清零，产物可直接过严格校验；要逐字节复刻原镜像时加 `--keep-tags`（此时严格校验器仍会误报）。
+- **输出形态默认跟随输入**：加密进 → 加密出，明文进 → 明文出；`--encrypt` / `--plaintext` 可强制。
+- **头部摘要**：包装 B 的前 20 字节是 `SHA1(body || K8)`。DSLR 的 `K8` 未知，默认原样保留；body 一变就打印 `STALE`。以后若恢复了 `K8`，用 `--k8 k8.json` 传入（`{"K8": "<16 hex>", "self_check": "<sha256>"}`），脚本会先验原镜像摘要，再为新 body 重算。
+- 退出码见 [§5.6](#56-退出码)。
+
+### 5.9 D750 高码率修改（64/60 Mbps）
+
+`d750_bitrate_patch.py` 把 `D750_0115` 的 1080p “High quality” 行（entry 1/3/5/7/9）从 `42/35`、`24/20` 改成 64/60 Mbps；`d750_bitrate_verify.py` 独立解密、重算两级 CRC，并核对 22 个表项：
+
+```powershell
+python d750_bitrate_patch.py `
+  --module D750_0115.dec.modules\b1010_115a.bin --check
+
+python d750_bitrate_patch.py `
+  --module D750_0115.dec.modules\b1010_115a.bin `
+  --out D750_0115.hq64.out\b1010_115a.hq64.bin
+
+python repack_firmware.py --key key_all.json --firmware D750_0115.bin `
+  --replace-module b1010_115a.bin=D750_0115.hq64.out\b1010_115a.hq64.bin `
+  --keep-tags --out D750_0115.hq64.out\D750_0115.hq64.bin
+
+python d750_bitrate_verify.py `
+  --stock D750_0115.bin `
+  --patched D750_0115.hq64.out\D750_0115.hq64.bin `
+  --module D750_0115.hq64.out\b1010_115a.hq64.bin `
+  --key key_all.json --json D750_0115.hq64.out\verify_report.json
+```
+
+结果：模块 CRC `0x12CA → 0x4314`；包 CRC 因 CRC residue 性质仍为 `0x7EE4`；解密镜像只有 36 B 差异，字段外 0 B。以上命令在代码项目根目录 `DSLR/` 执行，写入的是根目录的 `D750_0115.hq64.out/`；本项目内是事后复制品。完整报告见 [`REPORT.md`](D750_0115.hq64.out/REPORT.md)。**相机端编码器/写卡/回放尚未验证**。
 
 ---
 
