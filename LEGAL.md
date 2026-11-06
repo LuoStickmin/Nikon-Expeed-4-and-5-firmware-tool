@@ -104,6 +104,7 @@ redistributing this project does not violate laws applicable to you.
 ## 7. 许可证与第三方组件 / License and third-party components
 
 - 本仓库的代码按 **GPL-3.0** 分发，完整文本见 [`LICENSE`](LICENSE)。
+- 除明确标注为上游/第三方的部分外，本仓库原创代码的版权归 LuoStickmin 及贡献者所有，按 GPL-3.0 授权。
 - `extract_key.py` 与 `decrypt_firmware.py` 原样来自
   [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool)
   （GPL-3.0），其版权归原作者/贡献者。
@@ -112,6 +113,8 @@ redistributing this project does not violate laws applicable to you.
   发生冲突，以 `LICENSE` 为准。对固件、派生数据与商标的限制独立于代码许可证。
 
 - The code in this repository is distributed under **GPL-3.0**; see [`LICENSE`](LICENSE).
+- Except for parts explicitly marked as upstream/third-party, original code in this repository is
+  copyright (C) 2026 LuoStickmin and contributors, licensed under GPL-3.0.
 - `extract_key.py` and `decrypt_firmware.py` are copied verbatim from
   [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool)
   (GPL-3.0); copyright remains with its authors/contributors.
@@ -121,7 +124,16 @@ redistributing this project does not violate laws applicable to you.
   conflicts with `LICENSE` regarding code, `LICENSE` controls. The restrictions on firmware,
   derived data, and trademarks are independent of the code license.
 
-## 8. 联系 / Contact
+## 8. 隐私 / Privacy
+
+本项目不收集、上传或遥测任何个人数据；脚本在本地运行。通过 GitHub 访问或参与仓库时，
+GitHub 按其自身隐私政策处理数据。
+
+This project does not collect, upload, or telemetry any personal data; the scripts run locally.
+When you access or participate in the repository through GitHub, GitHub processes data under its
+own privacy policy.
+
+## 9. 联系 / Contact
 
 如对许可证、版权或本声明有疑问，请先联系维护者（见 [`SECURITY.md`](SECURITY.md)），
 而不是直接向平台提交滥用报告。
