@@ -5,8 +5,10 @@
 > 从官方更新包 `.bin` 出发，**只用密文本身**恢复厂商级 XOR 密钥表，解开容器、校验两级 CRC、切出模块，并留下一组静态分析探针。
 >
 > 仓库地址：<https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool>
+>
+> **相关项目 / Related project：** D750 高码率视频修改（64/60 Mbps）、QEMU 验证与 LCD dump 已拆分到 [LuoStickmin/D750-QEMU](https://github.com/LuoStickmin/D750-QEMU)；本仓库专注固件容器、密钥恢复与重打包。
 
-**Update (2026-11-05):** 新增重打包工具（[§5.8](#58-重新封包)）与 D750 高码率修改/验证（[§5.9](#59-d750-高码率修改6460-mbps)）。
+**Update (2026-11-05):** 新增重打包工具（[§5.8](#58-重新封包)）。
 
 ![scope](https://img.shields.io/badge/scope-Expeed%204%2F5%20DSLR-blue)
 ![verified](https://img.shields.io/badge/verified-12%20models%20%7C%2022%20images-brightgreen)
@@ -423,31 +425,6 @@ python repack_firmware.py --key key_all.json --firmware D850_0131.bin \
 - **头部摘要**：包装 B 的前 20 字节是 `SHA1(body || K8)`。DSLR 的 `K8` 未知，默认原样保留；body 一变就打印 `STALE`。以后若恢复了 `K8`，用 `--k8 k8.json` 传入（`{"K8": "<16 hex>", "self_check": "<sha256>"}`），脚本会先验原镜像摘要，再为新 body 重算。
 - 退出码见 [§5.6](#56-退出码)。
 
-### 5.9 D750 高码率修改（64/60 Mbps）
-
-`d750_bitrate_patch.py` 把 `D750_0115` 的 1080p “High quality” 行（entry 1/3/5/7/9）从 `42/35`、`24/20` 改成 64/60 Mbps；`d750_bitrate_verify.py` 独立解密、重算两级 CRC，并核对 22 个表项：
-
-```powershell
-python d750_bitrate_patch.py `
-  --module D750_0115.dec.modules\b1010_115a.bin --check
-
-python d750_bitrate_patch.py `
-  --module D750_0115.dec.modules\b1010_115a.bin `
-  --out D750_0115.hq64.out\b1010_115a.hq64.bin
-
-python repack_firmware.py --key key_all.json --firmware D750_0115.bin `
-  --replace-module b1010_115a.bin=D750_0115.hq64.out\b1010_115a.hq64.bin `
-  --keep-tags --out D750_0115.hq64.out\D750_0115.hq64.bin
-
-python d750_bitrate_verify.py `
-  --stock D750_0115.bin `
-  --patched D750_0115.hq64.out\D750_0115.hq64.bin `
-  --module D750_0115.hq64.out\b1010_115a.hq64.bin `
-  --key key_all.json --json D750_0115.hq64.out\verify_report.json
-```
-
-结果：模块 CRC `0x12CA → 0x4314`；包 CRC 因 CRC residue 性质仍为 `0x7EE4`；解密镜像只有 36 B 差异，字段外 0 B。以上命令在仓库根目录执行（需先用 [§5.2](#52-一键解密--切模块推荐) 解出 `D750_0115.dec.modules/`），写入 `D750_0115.hq64.out/`；仓库只保留该目录下的 `REPORT.md` 与两个 JSON 报告（`*.bin` / `*.dec` / 模块不入库）。完整报告见 [`REPORT.md`](D750_0115.hq64.out/REPORT.md)。**相机端编码器/写卡/回放尚未验证**。
-
 ---
 
 ## 6. 仓库结构
@@ -474,13 +451,9 @@ python d750_bitrate_verify.py `
 ├── decrypt_dslr.py               # 薄封装：HDR=0
 ├── decrypt_dslr2.py              # 自动识别 HDR + 切模块
 ├── repack_firmware.py            # 重建目录/两级 CRC、替换或修补模块、按需重加密
-├── d750_bitrate_patch.py         # D750 1080p HQ 码率表改成 64/60 Mbps
-├── d750_bitrate_verify.py        # 独立验证改后容器、CRC 与码率表
 ├── fill_t3.py                    # 缺块：启发式打分 + 组合枚举
 ├── solve212.py / solve212b.py / solve212c.py   # 缺块定点暴力（三种校验器）
 ├── finalize_key.py               # 合并修正值，写出 key_all.json
-├── tests/test_d750_bitrate_patch.py   # 码率修改单元测试（缺少样本时跳过）
-├── D750_0115.hq64.out/           # REPORT.md + patch_report.json + verify_report.json（二进制不入库）
 ├── dump_toc.py                   # 打印 D750_0101 的解密目录
 ├── analyze_core.py / find_base.py / check_base.py / scan_addrs.py   # 静态分析探针
 ├── scan_code.py / disasm_thumb.py / disasm_vtable.py
@@ -498,8 +471,6 @@ python d750_bitrate_verify.py `
 | `extract_key_mix.py` | 密钥恢复 | 逐文件识别 `0x00`/`0x20`，混合语料 |
 | `decrypt_dslr2.py` | 产物 | 自动识别 + 打印目录 + 落 `.modules` |
 | `repack_firmware.py` | 产物 | 重建目录/两级 CRC、替换或修补模块、按需重加密，写盘前自校验 |
-| `d750_bitrate_patch.py` | 修改 | 把 D750 1080p HQ 码率表改成 64/60 Mbps（带 stock 自检） |
-| `d750_bitrate_verify.py` | 验证 | 独立解密、重算两级 CRC、核对 22 个表项 |
 | `fill_t3.py` | 补缺 | 对缺失块按 0x00/0xFF/printable/ARM 加权打分，枚举候选组合用 CRC 判定 |
 | `solve212.py` | 补缺 | 固定 190/191，暴力 212（严格校验） |
 | `solve212b.py` | 补缺 | 同上，换成 CRC-only 校验（绕开误报） |

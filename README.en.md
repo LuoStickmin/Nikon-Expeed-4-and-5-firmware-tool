@@ -5,8 +5,10 @@
 > Starting from the official update package `.bin`, **using only the ciphertext itself**, recover the vendor-level XOR key tables, open the container, verify the two-level CRC, carve out the modules, and leave behind a set of static-analysis probes.
 >
 > Repository: <https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool>
+>
+> **Related project:** the D750 high-bitrate video modification (64/60 Mbps), QEMU validation, and LCD dump have moved to [LuoStickmin/D750-QEMU](https://github.com/LuoStickmin/D750-QEMU); this repository focuses on the firmware container, key recovery, and repacking.
 
-**Update (2026-11-05):** added the repacking tool ([§5.8](#58-repacking)) and the D750 high-bitrate patch/verification ([§5.9](#59-d750-high-bitrate-modification-6460-mbps)).
+**Update (2026-11-05):** added the repacking tool ([§5.8](#58-repacking)).
 
 ![scope](https://img.shields.io/badge/scope-Expeed%204%2F5%20DSLR-blue)
 ![verified](https://img.shields.io/badge/verified-12%20models%20%7C%2022%20images-brightgreen)
@@ -425,31 +427,6 @@ Key points:
 - **Header digest**: Wrapper B's first 20 bytes are `SHA1(body || K8)`. DSLR's `K8` is unknown, so it is kept as-is by default; if the body changes, `STALE` is printed. If `K8` is recovered in the future, pass it with `--k8 k8.json` (`{"K8": "<16 hex>", "self_check": "<sha256>"}`); the script will first verify the original image's digest, then recompute for the new body.
 - See [§5.6](#56-exit-codes) for exit codes.
 
-### 5.9 D750 High Bitrate Modification (64/60 Mbps)
-
-`d750_bitrate_patch.py` changes D750_0115's 1080p "High quality" rows (entry 1/3/5/7/9) from `42/35`, `24/20` to 64/60 Mbps; `d750_bitrate_verify.py` independently decrypts, recomputes both CRC levels, and cross-checks 22 table entries:
-
-```powershell
-python d750_bitrate_patch.py `
-  --module D750_0115.dec.modules\b1010_115a.bin --check
-
-python d750_bitrate_patch.py `
-  --module D750_0115.dec.modules\b1010_115a.bin `
-  --out D750_0115.hq64.out\b1010_115a.hq64.bin
-
-python repack_firmware.py --key key_all.json --firmware D750_0115.bin `
-  --replace-module b1010_115a.bin=D750_0115.hq64.out\b1010_115a.hq64.bin `
-  --keep-tags --out D750_0115.hq64.out\D750_0115.hq64.bin
-
-python d750_bitrate_verify.py `
-  --stock D750_0115.bin `
-  --patched D750_0115.hq64.out\D750_0115.hq64.bin `
-  --module D750_0115.hq64.out\b1010_115a.hq64.bin `
-  --key key_all.json --json D750_0115.hq64.out\verify_report.json
-```
-
-Results: module CRC `0x12CA → 0x4314`; package CRC remains `0x7EE4` due to the CRC residue property; decrypted image differs in only 36 B, 0 B outside the fields. The commands run from the repository root (decrypt the image first per [§5.2](#52-one-click-decrypt--carve-recommended)) and write to `D750_0115.hq64.out/`; the repository keeps only `REPORT.md` and the two JSON reports there (`*.bin` / `*.dec` / modules are not committed). Full report: [`REPORT.md`](D750_0115.hq64.out/REPORT.md). **Camera-side encoder/card write/playback not yet verified.**
-
 ---
 
 ## 6. Repository Layout
@@ -476,13 +453,9 @@ Results: module CRC `0x12CA → 0x4314`; package CRC remains `0x7EE4` due to the
 ├── decrypt_dslr.py               # thin wrapper: HDR=0
 ├── decrypt_dslr2.py              # auto-detect HDR + carve modules
 ├── repack_firmware.py            # rebuild directory/CRCs, patch/replace modules, re-encrypt
-├── d750_bitrate_patch.py         # patch D750 1080p HQ bitrate table to 64/60 Mbps
-├── d750_bitrate_verify.py        # independent verification of the patched container/CRCs/table
 ├── fill_t3.py                    # missing blocks: heuristic scoring + combinatorial enumeration
 ├── solve212.py / solve212b.py / solve212c.py   # missing-block pinpoint brute force
 ├── finalize_key.py               # merge corrections, write key_all.json
-├── tests/test_d750_bitrate_patch.py   # bitrate patch unit tests (skipped without fixture)
-├── D750_0115.hq64.out/           # REPORT.md + patch_report.json + verify_report.json (no binaries)
 ├── dump_toc.py                   # print D750_0101 decrypted directory
 ├── analyze_core.py / find_base.py / check_base.py / scan_addrs.py   # static-analysis probes
 ├── scan_code.py / disasm_thumb.py / disasm_vtable.py
@@ -500,8 +473,6 @@ Results: module CRC `0x12CA → 0x4314`; package CRC remains `0x7EE4` due to the
 | `extract_key_mix.py` | key recovery | detect `0x00`/`0x20` per file, mixed corpus |
 | `decrypt_dslr2.py` | artifact | auto-detect + print directory + write `.modules` |
 | `repack_firmware.py` | artifact | rebuild directory/CRC, replace/patch modules, re-encrypt, validate |
-| `d750_bitrate_patch.py` | artifact | patch D750 1080p bitrate table |
-| `d750_bitrate_verify.py` | analysis | independently verify patched module, CRCs, and table entries |
 | `fill_t3.py` | fill | for missing blocks, score by 0x00/0xFF/printable/ARM weights, enumerate candidate combos with CRC oracle |
 | `solve212.py` | fill | fix 190/191, brute 212 (strict validation) |
 | `solve212b.py` | fill | same, switched to CRC-only validation (to bypass false positive) |
