@@ -437,6 +437,7 @@ python repack_firmware.py --key key_all.json --firmware D850_0131.bin \
 │   ├── config.yml
 │   └── validation-report.yml
 ├── README.md / README.en.md
+├── LEGAL.md                      # 法律声明 / legal notice
 ├── CONTRIBUTING.md
 ├── SECURITY.md
 ├── VALIDATION_MATRIX.md
@@ -698,11 +699,17 @@ error: module 2 (_wma_ver01.00.00) has nonzero reserved bytes; nothing written.
 
 ## 10. 安全与合规
 
-- **固件版权属于 Nikon。** 仓库不包含 `.bin` / `.dec` / `.modules`（`.gitignore` 已排除）；作者本地的这些文件仅作个人研究留档，不应公开分发或用于商业用途。
+> 以下为维护者的合规说明，**不构成法律意见**；完整法律声明见 [`LEGAL.md`](LEGAL.md)，使用前请咨询你所在司法辖区的律师。
+
+- **非官方项目。** Nikon、EXPEED 与各机型名称是 Nikon Corporation 的商标；本项目与 Nikon 无关联，未获其授权、赞助或背书。
+- **固件版权与获取。** 固件版权归 Nikon，可能受其 EULA/更新条款约束；仓库不包含 `.bin` / `.dec` / `.modules`（`.gitignore` 已排除），请仅使用合法获取且你有权研究的镜像，不要公开分发固件、解密产物或修改后的镜像。
+- **逆向工程与反规避。** 固件解密/修改可能涉及当地的反规避或计算机访问法律（例如美国 DMCA §1201 及其互操作性例外、欧盟 2009/24/EC 第 6 条等；此处不穷举）。本项目用于互操作性研究，**不保证**任何具体使用在你的辖区合法；请自行判断并咨询律师。
 - **只用于自己拥有的设备。** 解包/分析属于互操作性研究；不要用于绕过版权保护、制作并传播修改版固件。
 - **不要直接刷入修改后的镜像。** 容器 CRC 可重算，但相机或更新器是否另有验签/型号校验未知；错误固件可能导致设备变砖且不在保修范围。
 - **CRC 不是签名。** 本文所有“校验通过”只表示镜像结构与校验和自洽，不代表来源可信。
-- **许可证**：完整 **GPL-3.0** 文本见 [`LICENSE`](LICENSE)。`extract_key.py` 与 `decrypt_firmware.py` 原样来自 [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool)，该仓库采用 GPL-3.0。这两个文件及其衍生物需继续按 GPL-3.0 分发并保留版权/许可声明；新增脚本若与它们构成组合作品，分发时也需满足 GPL-3.0，具体由作者确认。上游仓库本身不含固件与派生密钥；本仓库只含 `key_all.json`，不含固件样本。
+- **无担保与责任限制。** 软件按 GPL-3.0 的免责条款“AS IS”提供；在法律允许的最大范围内，维护者不对设备损坏、变砖、数据丢失、保修失效、法律后果或间接损失承担责任。
+- **派生密钥。** `key_all.json` 是从固件恢复的派生数据，其可版权性/可分发性因辖区而异；维护者不作保证。
+- **许可证**：本仓库代码按 **GPL-3.0** 分发，完整文本见 [`LICENSE`](LICENSE)。`extract_key.py` 与 `decrypt_firmware.py` 原样来自 [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool)（GPL-3.0），版权归其原作者/贡献者。本声明不改变、也不对 GPL-3.0 代码附加额外限制。
 
 ---
 

@@ -439,6 +439,7 @@ Key points:
 │   ├── config.yml
 │   └── validation-report.yml
 ├── README.md / README.en.md
+├── LEGAL.md                      # legal notice
 ├── CONTRIBUTING.md
 ├── SECURITY.md
 ├── VALIDATION_MATRIX.md
@@ -700,11 +701,17 @@ Files beyond 16 MiB reuse the keystream. This is a cryptographic weakness and th
 
 ## 10. Security and Compliance
 
-- **Firmware copyright belongs to Nikon.** The repository contains no `.bin` / `.dec` / `.modules` (`.gitignore` excludes them); the author's local copies are for personal research archival only and must not be publicly distributed or used commercially.
+> This is the maintainers' compliance note, **not legal advice**; see [`LEGAL.md`](LEGAL.md) for the full notice, and consult a lawyer in your jurisdiction before use.
+
+- **Independent project.** "Nikon", "EXPEED", and camera model names are trademarks of Nikon Corporation; this project is not affiliated with, authorized by, sponsored by, or endorsed by Nikon.
+- **Firmware copyright and acquisition.** Firmware is copyrighted by Nikon and may be subject to its EULA/update terms; the repository contains no `.bin` / `.dec` / `.modules` (`.gitignore` excludes them). Use only images you obtained lawfully and are entitled to study; do not publicly redistribute firmware, decrypted images, or modified images.
+- **Reverse engineering and anti-circumvention.** Firmware decryption/modification may implicate anti-circumvention or computer-access laws (e.g., U.S. DMCA §1201 and its interoperability exception, EU Directive 2009/24/EC Article 6; not exhaustive). This project is for interoperability research and **does not guarantee** that any particular use is lawful in your jurisdiction; assess it yourself and consult a lawyer.
 - **Use only on devices you own.** Unpacking/analysis is interoperability research; do not use it to bypass copyright protection, produce, and distribute modified firmware.
 - **Do not flash modified images directly.** Container CRC can be recomputed, but whether the camera or updater performs signature verification or model checks is unknown; wrong firmware may brick the device and void the warranty.
 - **CRC is not a signature.** All "validation passed" here only means structure and checksums are self-consistent, not that the source is trustworthy.
-- **License**: the full **GPL-3.0** text is in [`LICENSE`](LICENSE). `extract_key.py` and `decrypt_firmware.py` are copied verbatim from [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool), which uses GPL-3.0. These two files and their derivatives must continue to be distributed under GPL-3.0 with copyright/license notices preserved; new scripts that form a combined work with them must also satisfy GPL-3.0 when distributed — confirm with the author. The upstream repository itself contains no firmware or derived keys; this repository contains only `key_all.json`, not firmware samples.
+- **No warranty; limitation of liability.** The software is provided "AS IS" under the GPL-3.0 warranty disclaimer; to the maximum extent permitted by law, the maintainers are not liable for device damage, bricking, data loss, voided warranties, legal consequences, or indirect damages.
+- **Derived keys.** `key_all.json` contains derived data recovered from firmware; its copyright status and redistributability vary by jurisdiction, and the maintainers make no warranty about them.
+- **License**: the code in this repository is distributed under **GPL-3.0**; see [`LICENSE`](LICENSE) for the full text. `extract_key.py` and `decrypt_firmware.py` are copied verbatim from [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool) (GPL-3.0); copyright remains with its authors/contributors. This notice does not change or add restrictions to GPL-3.0 code.
 
 ---
 

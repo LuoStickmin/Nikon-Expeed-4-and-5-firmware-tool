@@ -15,11 +15,13 @@ After the existing badge lines, before the `---` and "Table of Contents".
 
 ```markdown
 > **免责声明 / Disclaimer**：本项目是 Nikon Expeed 4/5 固件容器的**互操作性研究记录**。
+> 本项目与 Nikon Corporation 无关联，未获其授权、赞助或背书。
 > 不提供可刷写镜像，不重签名；`repack_firmware.py` 仅用于研究性容器重建，不绕过设备验签，也不保证相机接受。
 > 所有「校验通过」仅表示完整性自洽，**不证明真实性**。
-> 请仅对自己拥有的设备与合法获取的固件使用。详见 [SECURITY.md](SECURITY.md) 与 [§10](#10-安全与合规)。
+> 请仅对自己拥有的设备与合法获取的固件使用。详见 [LEGAL.md](LEGAL.md)、[SECURITY.md](SECURITY.md) 与 [§10](#10-安全与合规)。
 >
 > **Disclaimer**: This project is an **interoperability research record** for Nikon Expeed 4/5 firmware containers.
+> It is not affiliated with, authorized by, sponsored by, or endorsed by Nikon Corporation.
 > It does not provide flashable images or re-sign firmware; `repack_firmware.py` is for research-grade container rebuilding only, does not bypass device signature checks, and does not guarantee camera acceptance.
 > Every "validation passed" statement only means structural integrity — it **does not prove authenticity**.
 > Use only on devices you own, with firmware you obtained legally. See [SECURITY.md](SECURITY.md) and [§10](#10-security-and-compliance).

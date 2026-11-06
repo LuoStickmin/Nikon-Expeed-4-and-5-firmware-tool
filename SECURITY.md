@@ -12,6 +12,8 @@
 
 `key_all.json` 中的三张表只用于解开官方更新包、复现容器结构。CRC 通过只证明完整性，不证明真实性。
 
+完整的法律声明（非官方项目、反规避、无担保与责任限制等）见 [LEGAL.md](LEGAL.md)。
+
 ## 报告问题
 
 如果你认为仓库中的内容存在以下问题，请 **先联系维护者**，而不是直接向 GitHub 提交 abuse 报告：
@@ -50,6 +52,8 @@ This repository is an **interoperability research record for Nikon Expeed 4/5 fi
 This repository **does not** produce flashable images, **does not** re-sign firmware, and **does not** involve bypassing camera or updater signature verification. `repack_firmware.py` exists only for research-grade container rebuilding (recompute module/package CRCs, optional re-encryption); wrapper B's header digest depends on the model-specific `K8`, so without it the digest is preserved and marked `STALE`, and the rebuilt image is **not guaranteed to be accepted by a camera**.
 
 The three tables in `key_all.json` are only for opening official update packages and reproducing the container structure. Passing CRC only proves integrity, not authenticity.
+
+See [LEGAL.md](LEGAL.md) for the full legal notice (non-affiliation, anti-circumvention, no warranty, and limitation of liability).
 
 ## Reporting issues
 
