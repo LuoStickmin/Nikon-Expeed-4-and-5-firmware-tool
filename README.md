@@ -269,8 +269,8 @@ T3  3617957facf8b21a5a3de0f3a1f6f27ca20d72c7208b196b2a8bec3076f39b49
 
 - **未收录的机型未验证。** 与 Expeed 4/5 同世代但不在上表的机型、以及更早（Expeed 3）或更晚（Z 系列）的机型，都不能假定适用；可以拿 `extract_key_mix.py` 试，但必须先过 CRC 验收。
 - **不区分机型的密钥 ≠ 不区分机型的容器。** 包装 A/B 的差异（32 字节头部）必须由 `HDR` 或自动识别处理，否则解密会整体错位。
-- **明文容器不能再跑解密器。** `decrypt_dslr2.py` 会无条件 XOR，对明文容器会直接毁掉目录。
-- **重打包的边界。** `repack_firmware.py` 可以重建目录、重算模块 CRC 与包 CRC、按输入重新加密，产物能通过 `validate_firmware` 的目录/CRC 校验；但包装 B 的 32 字节头部含带密钥的 SHA-1 摘要（`K8`），DSLR 的 `K8` 未知，未提供 `--k8` 时摘要只能原样保留并标记 `STALE`。**这不等于重签名，也不保证相机接受**，因此仓库仍不提供刷机产物。
+- **明文容器可以直接跑解密器。** `decrypt_dslr2.py` 先按明文容器完整校验（目录 + 两级 CRC），失败才 XOR，因此不会把明文容器二次 XOR。
+- **重打包的边界。** `repack_firmware.py` 可以重建目录、重算模块 CRC 与包 CRC、按输入重新加密，产物能通过 `validate_firmware` 的目录/CRC 校验；但包装 B 的 32 字节头部含带密钥的 SHA-1 摘要（`K8`），DSLR 的 `K8` 未知，body 一旦改变摘要就无法重算——工具默认**拒绝写盘**（exit 8），确需保留旧摘要时加 `--allow-stale-header`。**这不等于重签名，也不保证相机接受**，因此仓库仍不提供刷机产物。
 - **依赖语料的统计前提。** 阶段 3/5 假定填充以 `0x00` 为主；若某个 64 KiB 块以 `0xFF` 填充为主，需人工核对（`fill_t3.py` 与 CRC 枚举就是为此准备的）。
 - **方案由包装决定，不由 EXPEED 世代决定。** 上游已确认 Z 8/Z 9（EXPEED 7）仍用旧包装，而 Z f/Z 5II/Z 50II/Z 6III/ZR 是新方案；本仓库用“Expeed 4/5”只是语料范围的习惯叫法，不能据此反推机型或世代。
 
@@ -292,7 +292,7 @@ pip install capstone     # 可选，仅 analyze_core.py / disasm_*.py 使用
 
 ### 5.2 一键解密 + 切模块（推荐）
 
-`decrypt_dslr2.py` 自动识别 `HDR`（`0x00` 或 `0x20`），打印目录，写 `.dec` 与 `<out>.modules/`：
+`decrypt_dslr2.py` 自动识别 `HDR`（`0x00` 或 `0x20`）与明文/密文形态，**先校验目录与两级 CRC、再写盘**，打印目录并写出 `.dec` 与 `<out>.modules/`（已存在时需 `--force`）：
 
 ```bash
 python decrypt_dslr2.py \
@@ -369,12 +369,12 @@ python extract_key_mix.py  --firmware-dir corpus --out key.json
 | 退出码 | 含义 | 触发点 |
 | --- | --- | --- |
 | `0` | 成功，文件已写出 | — |
-| `2` | 参数错误 / 输入不可读 / 输出已存在 | `--force` 未给（仅 `decrypt_firmware` / `decrypt_dslr`；`decrypt_dslr2` 无此检查） |
+| `2` | 参数错误 / 输入不可读 / 输出已存在 | `--force` 未给 |
 | `3` | 密钥文件被拒绝（缺表、长度不对、self_check 不符） | `load_key` |
 | `4` | 不是本方案镜像（无空格标签，或命中 `0x260` 新方案） | `check_scheme` |
-| `5` | 结构或 CRC 校验失败（未写任何文件） | `validate_firmware` |
+| `5` | 结构或 CRC 校验失败（未写任何文件） | `validate_firmware` / `read_directory` |
 | `7` | 补丁/替换参数无法应用（未写任何文件） | `repack_firmware.py` |
-| `8` | 重建产物未通过自校验（未写盘） | `repack_firmware.py` |
+| `8` | 重建产物未通过自校验，或包装 B 头摘要将变为 STALE 而拒绝写盘 | `repack_firmware.py` |
 
 `extract_key.py` 额外用返回值表达回归状态：`0` 表示三张表与内置 `EXPECTED_SHA` 一致，`1` 表示发生漂移（仍会写出 key，但打印警告）。
 
@@ -382,7 +382,7 @@ python extract_key_mix.py  --firmware-dir corpus --out key.json
 
 ```console
 $ python decrypt_dslr2.py --key key_all.json --firmware D750_0115.bin --out D750_0115.dec
-header=0x0 count=3 dirsize=0x90
+header=0x0 count=3 mode=encrypted
   a1010_011100.bin     off=0x00000090 len=0x000C0002 tail=
   _wma_ver01.00.00     off=0x000C0092 len=0x0006BB37 tail=crc.bin
   b1010_115a.bin       off=0x0012BBC9 len=0x01362062 tail=
@@ -392,16 +392,20 @@ header=0x0 count=3 dirsize=0x90
 done
 ```
 
-> `tail=crc.bin` 是**第二个**条目（`_wma_ver01.00.00`）的 8 字节标签字段，合法存在；`decrypt_dslr2.py` 不校验 CRC，所以不会报错。用 `decrypt_dslr.py` / `decrypt_firmware.py` 的严格校验则会因此误拒（[§9.1](#91-严格校验器对-crcbin-标签误报)）。
+> `tail=crc.bin` 是**第二个**条目（`_wma_ver01.00.00`）的 8 字节标签字段，合法存在。`decrypt_dslr2.py` 会在写盘前校验目录、全部模块 CRC 与包 CRC，但**允许**这个 tag（严格校验器会因此误拒，见 [§9.1](#91-严格校验器对-crcbin-标签误报)）。
 
 ### 5.8 重新封包
 
-`repack_firmware.py` 从原始镜像出发（明文或密文均可），可替换/修补模块负载，重建目录与两级 CRC，并按输入决定是否重新加密；写盘前会再用 `decrypt_firmware.validate_firmware` 验一遍，不通过不落盘。
+`repack_firmware.py` 从原始镜像出发（明文或密文均可），可替换/修补模块负载，重建目录与两级 CRC，并按输入决定是否重新加密。写盘前它会重读产物、逐模块比对 payload/tag、复算两级 CRC，并用严格校验器再验一遍（保留 stock tag 时先把 tag 归零再验）；任何一步不过都不落盘。
 
 ```bash
 # 0) 先做位级往返自检：不改任何字节，产物必须与输入逐字节相同
 python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
     --out D750_0115.self.bin --selftest
+
+# 0b) 证明“解包 → 重封”无损：切出的模块目录必须复刻出与原镜像逐字节相同的文件
+python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
+    --modules-dir D750_0115.dec.modules --out D750_0115.rt.bin --selftest
 
 # 1) 从切出的模块目录重建（允许模块变大变小）
 python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
@@ -418,11 +422,12 @@ python repack_firmware.py --key key_all.json --firmware D850_0131.bin \
 
 要点：
 
-- **输入类型自动识别**：先按明文容器完整解析（目录 + 两级 CRC 全过才算），失败才对 body 做 XOR 再试一次；不会把明文容器二次 XOR（[§9.5](#95-明文容器会被解密器二次-xor)）。
+- **输入类型自动识别**：先按明文容器完整解析（目录 + 两级 CRC 全过才算），失败才对 body 做 XOR 再试一次；不会把明文容器二次 XOR（[§9.5](#95-明文容器不会再被二次-xor)）。
 - **目录重建**：模块顺序、16 字节名称字段与 tag 都取自原镜像；`--modules-dir` / `--replace-module` 允许改变模块长度，目录里的 `start/length` 会重排，最后一个模块仍精确结束在 `body[-16]`。
-- **tag 默认清零**：D750 的 `_wma_ver01.00.00` 原本是 ASCII `crc.bin`，会让严格校验器误拒（[§9.1](#91-严格校验器对-crcbin-标签误报)）。默认把 8 字节 tag 清零，产物可直接过严格校验；要逐字节复刻原镜像时加 `--keep-tags`（此时严格校验器仍会误报）。
+- **tag 默认保留**：D750 的 `_wma_ver01.00.00` 原本是 ASCII `crc.bin`，默认按原字节保留，重封结果可逐字节复刻原镜像；需要“严格校验器干净”的产物时加 `--zero-tags`（会改变原字节，包装 B 还会让头摘要变 STALE）。两种情况下自检都会验证：实际产物（放宽 tag 规则）+ 归零后的同一容器（严格规则）。
+- **自检兜底**：`--selftest` 要求产物与输入逐字节相同，且可与 `--modules-dir` 组合——这正是“解包再原封不动封装回去”的回归测试；`--replace-module` / `--patch-module` 是有意改字节，不能与它同用。
 - **输出形态默认跟随输入**：加密进 → 加密出，明文进 → 明文出；`--encrypt` / `--plaintext` 可强制。
-- **头部摘要**：包装 B 的前 20 字节是 `SHA1(body || K8)`。DSLR 的 `K8` 未知，默认原样保留；body 一变就打印 `STALE`。以后若恢复了 `K8`，用 `--k8 k8.json` 传入（`{"K8": "<16 hex>", "self_check": "<sha256>"}`），脚本会先验原镜像摘要，再为新 body 重算。
+- **头部摘要**：包装 B 的前 20 字节是 `SHA1(body || K8)`。DSLR 的 `K8` 未知；body 一变摘要就必然错，工具默认**拒绝写盘**（exit 8），确需保留旧摘要时加 `--allow-stale-header`。以后若恢复了 `K8`，用 `--k8 k8.json` 传入（`{"K8": "<16 hex>", "self_check": "<sha256>"}`），脚本会先验原镜像摘要，再为新 body 重算。
 - 退出码见 [§5.6](#56-退出码)。
 
 ---
@@ -657,7 +662,7 @@ D5__0150.bin   db8103e64d9f3c16391a5f7bde8a79cd1a59d78858e9c57871e325eb98df3ed1
 error: module 2 (_wma_ver01.00.00) has nonzero reserved bytes; nothing written.
 ```
 
-**处理**：`decrypt_dslr2.py` 不做该检查；需要校验时用 `solve212c.py` / `finalize_key.py` 里那种 CRC-only 的 `validate_dslr`，或把保留字段检查放宽为“允许 ASCII 标签”。这是容器语义问题，不是密钥问题——`D750_0115.dec` 的三个模块 CRC 与包 CRC 全部正确。
+**处理**：`decrypt_dslr2.py` 用它自己的放宽校验（目录 + 两级 CRC 全过，允许非零 tag），因此能正常解包 D750；`repack_firmware.py` 默认保留 tag，并在自检时先把 tag 归零再用严格校验器验一遍。这是容器语义问题，不是密钥问题——`D750_0115.dec` 的三个模块 CRC 与包 CRC 全部正确。
 
 ### 9.2 `extract_key.py` 的目录探针是简化版
 
@@ -671,9 +676,9 @@ error: module 2 (_wma_ver01.00.00) has nonzero reserved bytes; nothing written.
 
 `extract_key.py` 里的 `KNOWN` 哈希与 `MINIMAL` 白名单来自上游 [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool) 的 Z 系列样本（`Z_5_0150.bin` 等）。拿 DSLR 语料跑会打印“unknown hash”警告，不影响恢复；只在比对 `EXPECTED_SHA` 时才有意义。
 
-### 9.5 明文容器会被解密器二次 XOR
+### 9.5 明文容器不会再被二次 XOR
 
-`decrypt_dslr2.py` 无条件对 body 做 XOR，对已是明文的容器不报错但会产出垃圾。判断依据：直接解析 body 的目录能否通过 CRC（[§5.4](#54-输入已是明文容器时)）。
+`decrypt_dslr2.py` 先按明文容器完整校验（目录 + 两级 CRC），通过就直接切片；失败才 XOR 再试一次，所以对 `.dec` / 明文容器不会再产出垃圾。判断依据同样是“直接解析 body 的目录能否通过 CRC”（[§5.4](#54-输入已是明文容器时)）。
 
 ### 9.6 阶段 5 的“零填充优先”假设
 
@@ -681,7 +686,7 @@ error: module 2 (_wma_ver01.00.00) has nonzero reserved bytes; nothing written.
 
 ### 9.7 16 MiB 周期是特性，不是 bug
 
-超过 16 MiB 的文件会复用密钥流。这是密码学弱点，也是 `key_all.json` 里那份 48 MB 级 D5 镜像能用同一套表解开的原因；不要把“周期复用”误当成解密器的索引错误。注意作者本地的 `D5__0150.bin` 已经是明文容器，不能再跑解密器。
+超过 16 MiB 的文件会复用密钥流。这是密码学弱点，也是 `key_all.json` 里那份 48 MB 级 D5 镜像能用同一套表解开的原因；不要把“周期复用”误当成解密器的索引错误。注意作者本地的 `D5__0150.bin` 已经是明文容器，会被 `decrypt_dslr2.py` 识别为 plaintext，不会再被 XOR。
 
 ### 9.8 版本号警告是提示
 
@@ -691,9 +696,9 @@ error: module 2 (_wma_ver01.00.00) has nonzero reserved bytes; nothing written.
 
 `analyze_core.py` 会在导入失败时降级（不做反汇编）；`disasm_thumb.py`、`disasm_vtable.py`、`check_base.py` 则直接依赖 capstone。未安装时这些脚本不可用，但不影响解密主流程。
 
-### 9.10 `decrypt_dslr2.py` 会静默覆盖输出
+### 9.10 `decrypt_dslr2.py` 现在要求 `--force`
 
-`decrypt_dslr2.py` 不做 clobber 检查，`--out` 已存在时直接覆盖；`decrypt_firmware.py` / `decrypt_dslr.py` 则要求 `--force`。批处理前先备份，或先确认目标路径。
+`decrypt_dslr2.py` 与 `decrypt_firmware.py` / `decrypt_dslr.py` 一致：`--out` 或其 `.modules` 目录已存在时必须加 `--force`，否则以退出码 2 结束。批处理前先备份，或显式覆盖。
 
 ---
 

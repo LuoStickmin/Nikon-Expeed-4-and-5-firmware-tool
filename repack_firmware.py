@@ -24,6 +24,11 @@ decrypt_firmware.validate_firmware() before anything is written.
     python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
         --out D750_0115.selftest.bin --selftest
 
+    # prove that an unpack/repack cycle is lossless: the extracted payloads
+    # must reproduce the input image byte for byte
+    python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
+        --modules-dir D750_0115.dec.modules --out D750_0115.rt.bin --selftest
+
     # rebuild from an extracted .modules directory (sizes may change)
     python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
         --modules-dir D750_0115.dec.modules --out D750_0115.repack.bin
@@ -34,20 +39,24 @@ decrypt_firmware.validate_firmware() before anything is written.
 
 Header digest (packaging B only): the 32-byte header's first 20 bytes are
 SHA1(decrypted_body || K8), where K8 is a per-model 8-byte key. K8 has not
-been recovered for the DSLR samples, so by default the header is copied
-verbatim; when the body changes the digest is reported as STALE. Pass --k8
-with a JSON file ({"K8": "<16 hex chars>", "self_check": "<sha256>"} is the
-format produced for the upstream Z 8/Z 9 case) to verify the stock digest and
+been recovered for the DSLR samples, so the header is copied verbatim. If an
+edit changes the body, the copied digest is guaranteed stale: the tool refuses
+to write such an image unless --allow-stale-header is passed. Pass --k8 with a
+JSON file ({"K8": "<16 hex chars>", "self_check": "<sha256>"} is the format
+produced for the upstream Z 8/Z 9 case) to verify the stock digest and
 recompute it for the output.
 
 Directory tags: the 8 reserved bytes are zero in every DSLR sample except the
 D750 `_wma_ver01.00.00` entry, whose tag is ASCII `crc.bin`. A strict
 decrypt_firmware.py rejects that image even though its CRCs are correct
-(documentation §9.1). By default this tool zeroes the tag so the output passes the
-strict validator; --keep-tags preserves it byte for byte.
+(documentation §9.1). The tag is preserved byte for byte by default; --zero-tags
+canonicalises it to zero on request. The self-check always validates the rebuilt
+container twice: as written (relaxed tag rule) and with the tags canonicalised
+(strict decrypt_firmware.validate_firmware).
 
 Exit codes: 2 usage, 3 bad key, 4 wrong scheme, 5 invalid input container,
-7 a requested edit could not be applied, 8 self-verification failed.
+7 a requested edit could not be applied, 8 self-verification failed or a
+stale packaging-B header digest was about to be written.
 
 Requires NumPy via decrypt_firmware.
 """
@@ -177,8 +186,9 @@ def read_directory(body):
         if start != expected:
             raise ValueError("module %d (%s) starts at 0x%x, expected 0x%x"
                              % (i + 1, name, start, expected))
-        if length < 2:
-            raise ValueError("module %d (%s) is too short for its CRC" % (i + 1, name))
+        if length < 3:
+            raise ValueError("module %d (%s) has no payload (length %d)"
+                             % (i + 1, name, length))
         if start + length > payload_end:
             raise ValueError("module %d (%s) extends beyond the checksum trailer"
                              % (i + 1, name))
@@ -201,6 +211,8 @@ def read_directory(body):
     if stored != actual:
         raise ValueError("package CRC mismatch: stored 0x%04x, computed 0x%04x"
                          % (stored, actual))
+    if len({m["name"] for m in mods}) != len(mods):
+        raise ValueError("duplicate module name in directory")
     return mods
 
 
@@ -288,6 +300,9 @@ def take_modules_dir(mods, dirpath):
         except OSError as exc:
             fw.die(EX_EDIT, "cannot read %s for module %s: %s"
                    % (path, mod["name"], exc))
+        if not data:
+            fw.die(EX_EDIT, "%s is empty (0 bytes); is %s a complete extraction?"
+                   % (path, dirpath))
         edits.append((mod["name"], "modules-dir", len(mod["payload"]), len(data)))
         mod["payload"] = data
     known = {m["name"] for m in mods}
@@ -311,6 +326,8 @@ def apply_replace(mods, spec):
             data = fh.read()
     except OSError as exc:
         fw.die(EX_EDIT, "cannot read %s: %s" % (path, exc))
+    if not data:
+        fw.die(EX_EDIT, "replacement for %s is empty (0 bytes)" % mods[idx]["name"])
     old = len(mods[idx]["payload"])
     mods[idx]["payload"] = data
     return [(mods[idx]["name"], "replace", old, len(data))]
@@ -338,9 +355,9 @@ def apply_patch(mods, spec):
         fw.die(EX_EDIT, "patch offset into %s is negative (%d)" % (mods[idx]["name"], off))
     if off + len(data) > len(payload):
         fw.die(EX_EDIT,
-               "patch at %s+0x%x..0x%x leaves the payload (0x0..0x%x; its last "
-               "two bytes are the CRC)" % (mods[idx]["name"], off, off + len(data),
-                                           len(payload)))
+               "patch at %s+0x%x..0x%x leaves the payload (0x0..0x%x); the "
+               "module CRC is appended during sealing"
+               % (mods[idx]["name"], off, off + len(data), len(payload)))
     payload[off:off + len(data)] = data
     mods[idx]["payload"] = bytes(payload)
     return [(mods[idx]["name"], "patch +0x%x" % off, len(payload), len(payload))]
@@ -376,7 +393,7 @@ def main(argv=None):
                     "module and package CRCs.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Exit codes: 2 usage, 3 bad key, 4 wrong scheme, 5 invalid input, "
-               "7 bad edit, 8 self-verification failed.")
+               "7 bad edit, 8 self-verification failed or stale header refused.")
     ap.add_argument("--firmware", required=True,
                     help="stock image: encrypted or plaintext, packaging A or B")
     ap.add_argument("--out", required=True, help="repacked image to write")
@@ -404,9 +421,14 @@ def main(argv=None):
     tags.add_argument("--zero-tags", dest="tags", action="store_const", const=TAG_ZERO,
                       help="canonicalise the 8 reserved tag bytes to zero")
     tags.add_argument("--keep-tags", dest="tags", action="store_const", const=TAG_KEEP,
-                      help="preserve stock tag bytes (D750 keeps 'crc.bin')")
+                      help="preserve stock tag bytes (default; D750 keeps 'crc.bin')")
+    ap.add_argument("--allow-stale-header", action="store_true",
+                    help="write a packaging-B image whose body changed even though "
+                         "the header digest cannot be recomputed (default: refuse)")
     ap.add_argument("--selftest", action="store_true",
-                    help="no edits; the repacked image must be bit-identical to the input")
+                    help="the repacked image must be bit-identical to the input; "
+                         "allowed with --modules-dir to prove an unpack/repack cycle "
+                         "is lossless")
     args = ap.parse_args(argv)
 
     fw.refuse_clobber(args.out, args.force)
@@ -415,18 +437,13 @@ def main(argv=None):
                "output is the same file as --firmware; keep the stock image, it is "
                "the only baseline a bad repack can be compared against.")
 
-    if args.selftest and (args.modules_dir or args.replace_module or args.patch_module):
-        fw.die(fw.EX_USAGE, "--selftest makes no edits; drop --modules-dir, "
-               "--replace-module and --patch-module")
+    if args.selftest and (args.replace_module or args.patch_module):
+        fw.die(fw.EX_USAGE, "--selftest makes no edits; drop --replace-module and "
+               "--patch-module. --modules-dir is allowed: the extracted payloads "
+               "must reproduce the input byte for byte.")
 
-    # Tag policy: strict-validator-clean by default, byte fidelity on request.
-    if args.tags is None:
-        zero_tags = not args.selftest
-    else:
-        zero_tags = args.tags == TAG_ZERO
-    if args.selftest and zero_tags:
-        fw.die(fw.EX_USAGE, "--selftest compares bytes, so it needs --keep-tags; "
-               "drop --zero-tags.")
+    # Tag policy: preserve stock bytes by default; --zero-tags is opt-in.
+    zero_tags = args.tags == TAG_ZERO
 
     try:
         with open(args.firmware, "rb") as fh:
@@ -448,6 +465,9 @@ def main(argv=None):
     plain_in, mods, encoding = decode(raw, hdr, tables, args.firmware)
     body_in = memoryview(plain_in)[hdr:]
     legacy_tags = [m for m in mods if m["tag"] != ZERO8]
+    if args.selftest and zero_tags and legacy_tags:
+        fw.die(fw.EX_USAGE, "--selftest compares bytes, and this image carries stock "
+               "tag bytes; keep --keep-tags (the default) or drop --zero-tags.")
 
     # Edits are applied to the in-memory module payloads, then re-sealed.
     edits = []
@@ -493,8 +513,15 @@ def main(argv=None):
         elif body_same:
             digest_state = "preserved (body unchanged)"
         else:
-            digest_state = ("STALE: body changed and K8 is unknown; the digest "
-                            "cannot be recomputed")
+            if not args.allow_stale_header:
+                fw.die(EX_VERIFY,
+                       "this edit changes the body, but the packaging B header digest "
+                       "(SHA1(body || K8)) cannot be recomputed without --k8.\n"
+                       "       Writing the stock digest would produce an image with a "
+                       "guaranteed-wrong header; pass --allow-stale-header if that is "
+                       "intended (e.g. a CRC-only or QEMU test).")
+            digest_state = ("STALE: body changed and K8 is unknown; written on "
+                            "request (--allow-stale-header)")
 
     plain_out = header_out + body_out
     image_out = xor_stream(plain_out, hdr, tables) if encrypted_out else plain_out
@@ -509,30 +536,43 @@ def main(argv=None):
         check_plain = image_out
     check_body = memoryview(check_plain)[hdr:]
     try:
-        read_directory(check_body)
-        fw.validate_firmware(check_body)
-        strict_note = "strict: directory, trailer, module CRCs and package CRC OK"
+        check_mods = read_directory(check_body)
     except ValueError as exc:
-        if "nonzero reserved bytes" in str(exc) and not zero_tags and legacy_tags:
-            # The only expected failure: stock tag bytes kept on request.
-            strict_note = ("strict tag check skipped: legacy tag preserved (%s)"
-                           % ", ".join("%s=%r" % (m["name"], m["tag"]) for m in legacy_tags))
-        else:
-            fw.die(EX_VERIFY, "the rebuilt image fails validation (%s); nothing "
-                   "written." % exc)
+        fw.die(EX_VERIFY, "the rebuilt image fails validation (%s); nothing "
+               "written." % exc)
+    if len(check_mods) != len(mods):
+        fw.die(EX_VERIFY, "the rebuilt directory has %d modules, expected %d; "
+               "nothing written." % (len(check_mods), len(mods)))
+    for want, got in zip(mods, check_mods):
+        if (want["name"] != got["name"] or want["tag"] != got["tag"]
+                or want["payload"] != got["payload"]):
+            fw.die(EX_VERIFY, "re-read module %s does not match the payload that "
+                   "was sealed; nothing written." % want["name"])
+    if zero_tags or not legacy_tags:
+        try:
+            fw.validate_firmware(check_body)
+        except ValueError as exc:
+            fw.die(EX_VERIFY, "the rebuilt image fails the strict validator (%s); "
+                   "nothing written." % exc)
+        strict_note = "strict: directory, trailer, module CRCs and package CRC OK"
+    else:
+        # Stock tag bytes are kept, so the strict validator will (correctly)
+        # reject the output. Prove that everything else is clean by validating
+        # the same container with the reserved tag bytes canonicalised.
+        try:
+            fw.validate_firmware(memoryview(seal(mods, True)))
+        except ValueError as exc:
+            fw.die(EX_VERIFY, "the rebuilt image fails the strict validator after "
+                   "canonicalising tags (%s); nothing written." % exc)
+        strict_note = ("directory, trailer, module CRCs and package CRC OK; stock "
+                       "tag preserved (%s), strict rule satisfied after zeroing"
+                       % ", ".join("%s=%r" % (m["name"], m["tag"]) for m in legacy_tags))
     if hdr == HDR_B and k8 is not None and sign(check_body, k8) != header_out[:20]:
         fw.die(EX_VERIFY, "the rebuilt image fails its header digest; nothing written.")
     if args.selftest:
         if image_out != raw:
             fw.die(EX_VERIFY, "selftest: output differs from the input in %d byte(s)."
                    % count_diffs(image_out, raw))
-        if legacy_tags:
-            strict_body = seal(mods, True)
-            try:
-                fw.validate_firmware(memoryview(strict_body))
-            except ValueError as exc:
-                fw.die(EX_VERIFY, "selftest: the zero-tag variant fails the strict "
-                       "validator (%s)." % exc)
 
     # ---- atomic write --------------------------------------------------------
     tmp = args.out + ".tmp"
@@ -579,9 +619,10 @@ def main(argv=None):
     if encrypted_out:
         print("             decrypt(repack) == plaintext (bit-identical)")
     if args.selftest:
-        print("  selftest   output is bit-identical to the input")
-        if legacy_tags:
-            print("             zero-tag variant also passes the strict validator")
+        if args.modules_dir:
+            print("  selftest   --modules-dir reproduces the input byte for byte")
+        else:
+            print("  selftest   output is bit-identical to the input")
     print("  sha256     %s" % sha256(image_out))
     return 0
 

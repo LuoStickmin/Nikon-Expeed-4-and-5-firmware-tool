@@ -271,8 +271,8 @@ Another corroboration: the first 16 bytes of these three tables' SHA-256 match t
 
 - **Models not included are unverified.** Models of the same Expeed 4/5 generation but not in the table above, as well as earlier (Expeed 3) or later (Z-series) models, cannot be assumed applicable; try `extract_key_mix.py`, but must pass CRC validation first.
 - **Key not distinguishing models ≠ container not distinguishing models.** The wrapper A/B difference (32-byte header) must be handled by `HDR` or auto-detection, otherwise decryption is globally misaligned.
-- **Plaintext containers must not be re-decrypted.** `decrypt_dslr2.py` unconditionally XORs; on a plaintext container this destroys the directory.
-- **Limits of repacking.** `repack_firmware.py` can rebuild the directory, recompute module and package CRCs, and re-encrypt according to the input; the result passes `validate_firmware`'s directory/CRC checks. But wrapper B's 32-byte header carries a keyed SHA-1 digest (`K8`); the DSLR `K8` is unknown, so without `--k8` the digest is preserved as-is and marked `STALE`. **This is not re-signing and does not guarantee the camera accepts it**, so the repository still ships no flashable artifact.
+- **Plaintext containers can go through the decryptor.** `decrypt_dslr2.py` validates as a plaintext container first (directory + both CRC levels) and only XORs on failure, so it will not double-XOR a plaintext container.
+- **Limits of repacking.** `repack_firmware.py` can rebuild the directory, recompute module and package CRCs, and re-encrypt according to the input; the result passes `validate_firmware`'s directory/CRC checks. But wrapper B's 32-byte header carries a keyed SHA-1 digest (`K8`); the DSLR `K8` is unknown, so once the body changes the digest cannot be recomputed — the tool **refuses to write** (exit 8) unless `--allow-stale-header` is given. **This is not re-signing and does not guarantee the camera accepts it**, so the repository still ships no flashable artifact.
 - **Depends on corpus statistics.** Stages 3/5 assume fill is predominantly `0x00`; if a 64 KiB block is predominantly `0xFF`, manual verification is needed (`fill_t3.py` and CRC enumeration exist for this).
 - **Scheme is determined by wrapper, not by EXPEED generation.** Upstream confirmed Z 8/Z 9 (EXPEED 7) still use the old wrapper, while Z f/Z 5II/Z 50II/Z 6III/ZR use the new scheme; "Expeed 4/5" here is just the customary corpus-scope label and cannot be used to infer model or generation.
 
@@ -294,7 +294,7 @@ Dev environment is Python 3.12 + NumPy 2.3.5; pure Python, runs on Windows / Lin
 
 ### 5.2 One-Click Decrypt + Carve (recommended)
 
-`decrypt_dslr2.py` auto-detects `HDR` (`0x00` or `0x20`), prints the directory, writes `.dec` and `<out>.modules/`:
+`decrypt_dslr2.py` auto-detects `HDR` (`0x00` or `0x20`) and the plaintext/encrypted form, **validates the directory and both CRC levels before writing anything**, prints the directory, and writes `.dec` plus `<out>.modules/` (add `--force` if they already exist):
 
 ```bash
 python decrypt_dslr2.py \
@@ -371,12 +371,12 @@ Key file fields: `scheme` (scheme description), `period_bytes` (`1<<24`), `T1/T2
 | Exit code | Meaning | Trigger |
 | --- | --- | --- |
 | `0` | Success, files written | — |
-| `2` | Argument error / unreadable input / output exists | `--force` missing (only `decrypt_firmware` / `decrypt_dslr`; `decrypt_dslr2` lacks this check) |
+| `2` | Argument error / unreadable input / output exists | `--force` missing |
 | `3` | Key file rejected (missing table, wrong length, self_check mismatch) | `load_key` |
 | `4` | Not this scheme's image (no space tag, or hits `0x260` new scheme) | `check_scheme` |
-| `5` | Structure or CRC validation failed (no files written) | `validate_firmware` |
+| `5` | Structure or CRC validation failed (no files written) | `validate_firmware` / `read_directory` |
 | `7` | Patch/replace argument could not be applied (no files written) | `repack_firmware.py` |
-| `8` | Rebuilt output failed self-validation (nothing written) | `repack_firmware.py` |
+| `8` | Rebuilt output failed self-validation, or a stale wrapper-B header digest was about to be written (refused) | `repack_firmware.py` |
 
 `extract_key.py` additionally expresses regression status via return value: `0` means all three tables match built-in `EXPECTED_SHA`, `1` means drift (still writes the key, but prints a warning).
 
@@ -384,7 +384,7 @@ Key file fields: `scheme` (scheme description), `period_bytes` (`1<<24`), `T1/T2
 
 ```console
 $ python decrypt_dslr2.py --key key_all.json --firmware D750_0115.bin --out D750_0115.dec
-header=0x0 count=3 dirsize=0x90
+header=0x0 count=3 mode=encrypted
   a1010_011100.bin     off=0x00000090 len=0x000C0002 tail=
   _wma_ver01.00.00     off=0x000C0092 len=0x0006BB37 tail=crc.bin
   b1010_115a.bin       off=0x0012BBC9 len=0x01362062 tail=
@@ -394,16 +394,21 @@ header=0x0 count=3 dirsize=0x90
 done
 ```
 
-> `tail=crc.bin` is the 8-byte tag field of the **second** entry (`_wma_ver01.00.00`), legitimately present; `decrypt_dslr2.py` does not validate CRC, so it does not error. The strict validation in `decrypt_dslr.py` / `decrypt_firmware.py` falsely rejects it ([§9.1](#91-strict-validator-false-positive-on-crcbin-tag)).
+> `tail=crc.bin` is the 8-byte tag field of the **second** entry (`_wma_ver01.00.00`), legitimately present. `decrypt_dslr2.py` validates the directory, every module CRC and the package CRC before writing, but **allows** this tag (the strict validator falsely rejects it, see [§9.1](#91-strict-validator-false-positive-on-crcbin-tag)).
 
 ### 5.8 Repacking
 
-`repack_firmware.py` starts from the original image (plaintext or encrypted), can replace/patch module payloads, rebuilds the directory and both CRC levels, and decides whether to re-encrypt based on the input; before writing to disk it validates again with `decrypt_firmware.validate_firmware` and refuses to write if validation fails.
+`repack_firmware.py` starts from the original image (plaintext or encrypted), can replace/patch module payloads, rebuilds the directory and both CRC levels, and decides whether to re-encrypt based on the input. Before writing, it re-reads the product, compares every payload and tag, recomputes both CRC levels and runs the strict validator again (after canonicalising stock tags when they are preserved); if any step fails, nothing is written.
 
 ```bash
 # 0) Bit-level round-trip self-test first: modify nothing, output must match input byte-for-byte
 python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
     --out D750_0115.self.bin --selftest
+
+# 0b) Prove the unpack/repack cycle is lossless: the carved payloads must
+#     reproduce the input image byte-for-byte
+python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
+    --modules-dir D750_0115.dec.modules --out D750_0115.rt.bin --selftest
 
 # 1) Rebuild from a carved module directory (modules may grow or shrink)
 python repack_firmware.py --key key_all.json --firmware D750_0115.bin \
@@ -420,11 +425,12 @@ python repack_firmware.py --key key_all.json --firmware D850_0131.bin \
 
 Key points:
 
-- **Input type auto-detected**: first attempts full parsing as a plaintext container (directory + both CRC levels must pass); only on failure does it XOR the body and try again; it will not double-XOR a plaintext container ([§9.5](#95-plaintext-containers-get-double-xored)).
+- **Input type auto-detected**: first attempts full parsing as a plaintext container (directory + both CRC levels must pass); only on failure does it XOR the body and try again; it will not double-XOR a plaintext container ([§9.5](#95-plaintext-containers-no-longer-get-double-xored)).
 - **Directory rebuild**: module order, 16-byte name fields, and tags are taken from the original image; `--modules-dir` / `--replace-module` allow changing module length, directory `start/length` are recalculated, and the last module still ends exactly at `body[-16]`.
-- **Tag zeroed by default**: D750's `_wma_ver01.00.00` originally has ASCII `crc.bin`, which would cause the strict validator to falsely reject ([§9.1](#91-strict-validator-false-positive-on-crcbin-tag)). By default the 8-byte tag is zeroed, so the output passes strict validation directly; to replicate the original image byte-for-byte add `--keep-tags` (the strict validator will still falsely reject it).
+- **Tag preserved by default**: D750's `_wma_ver01.00.00` originally has ASCII `crc.bin`; it is kept byte-for-byte so the repack can reproduce the stock image exactly. Add `--zero-tags` for a strict-validator-clean artifact (this changes bytes and, for wrapper B, stales the header digest). Either way the self-check validates the product as written (relaxed tag rule) *and* the same container with tags canonicalised (strict rule).
+- **Self-test backstop**: `--selftest` requires the output to be bit-identical to the input and may be combined with `--modules-dir` — that is exactly the "unpack then repack unchanged" regression test. `--replace-module` / `--patch-module` edit bytes on purpose, so they are rejected with `--selftest`.
 - **Output form follows input by default**: encrypted in → encrypted out, plaintext in → plaintext out; `--encrypt` / `--plaintext` can force otherwise.
-- **Header digest**: Wrapper B's first 20 bytes are `SHA1(body || K8)`. DSLR's `K8` is unknown, so it is kept as-is by default; if the body changes, `STALE` is printed. If `K8` is recovered in the future, pass it with `--k8 k8.json` (`{"K8": "<16 hex>", "self_check": "<sha256>"}`); the script will first verify the original image's digest, then recompute for the new body.
+- **Header digest**: Wrapper B's first 20 bytes are `SHA1(body || K8)`. DSLR's `K8` is unknown; any body change makes the digest wrong, so the tool **refuses to write** (exit 8). Pass `--allow-stale-header` to keep the old digest deliberately. If `K8` is recovered in the future, pass it with `--k8 k8.json` (`{"K8": "<16 hex>", "self_check": "<sha256>"}`); the script will first verify the original image's digest, then recompute for the new body.
 - See [§5.6](#56-exit-codes) for exit codes.
 
 ---
@@ -659,7 +665,7 @@ Module naming pattern: `a<platform>_<version>` / `b<platform>_<version>`. D750's
 error: module 2 (_wma_ver01.00.00) has nonzero reserved bytes; nothing written.
 ```
 
-**Handling**: `decrypt_dslr2.py` does not perform this check; when validation is needed, use the CRC-only `validate_dslr` from `solve212c.py` / `finalize_key.py`, or relax the reserved-field check to "allow ASCII tags". This is a container-semantics issue, not a key issue — `D750_0115.dec`'s three module CRCs and package CRC all pass.
+**Handling**: `decrypt_dslr2.py` uses its own relaxed validator (directory + both CRC levels must pass, non-zero tags allowed), so it unpacks D750 correctly; `repack_firmware.py` keeps the tag by default and validates the strict rule after canonicalising it. This is a container-semantics issue, not a key issue — `D750_0115.dec`'s three module CRCs and package CRC all pass.
 
 ### 9.2 `extract_key.py`'s Directory Probe Is Simplified
 
@@ -673,9 +679,9 @@ error: module 2 (_wma_ver01.00.00) has nonzero reserved bytes; nothing written.
 
 `extract_key.py`'s `KNOWN` hashes and `MINIMAL` whitelist come from upstream [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool)'s Z-series samples (`Z_5_0150.bin` etc.). Running on DSLR corpus prints "unknown hash" warnings, does not affect recovery; only meaningful when comparing `EXPECTED_SHA`.
 
-### 9.5 Plaintext Containers Get Double-XORed
+### 9.5 Plaintext Containers No Longer Get Double-XORed
 
-`decrypt_dslr2.py` unconditionally XORs the body; on an already-plaintext container it does not error but produces garbage. Detection: whether parsing the body directory directly passes CRC ([§5.4](#54-when-input-is-already-a-plaintext-container)).
+`decrypt_dslr2.py` validates as a plaintext container first (directory + both CRC levels); only on failure does it XOR and try again, so a `.dec` / plaintext container is never turned into garbage. The detection rule is the same: whether parsing the body directory directly passes CRC ([§5.4](#54-when-input-is-already-a-plaintext-container)).
 
 ### 9.6 Stage 5's "Zero-Fill Priority" Assumption
 
@@ -683,7 +689,7 @@ Corpus with predominantly `0x00` fill works directly; if some block is predomina
 
 ### 9.7 The 16 MiB Period Is a Feature, Not a Bug
 
-Files beyond 16 MiB reuse the keystream. This is a cryptographic weakness and the reason the 48 MB-class D5 image in `key_all.json` opens with the same tables; do not mistake "period reuse" for a decryptor index error. Note that the author's local `D5__0150.bin` is already a plaintext container and must not be re-decrypted.
+Files beyond 16 MiB reuse the keystream. This is a cryptographic weakness and the reason the 48 MB-class D5 image in `key_all.json` opens with the same tables; do not mistake "period reuse" for a decryptor index error. Note that the author's local `D5__0150.bin` is already a plaintext container; `decrypt_dslr2.py` reports it as plaintext and does not XOR it.
 
 ### 9.8 Version-Number Warning Is a Hint
 
@@ -693,9 +699,9 @@ Files beyond 16 MiB reuse the keystream. This is a cryptographic weakness and th
 
 `analyze_core.py` degrades on import failure (no disassembly); `disasm_thumb.py`, `disasm_vtable.py`, `check_base.py` depend directly on capstone. Without it, those scripts are unavailable but the main decryption flow is unaffected.
 
-### 9.10 `decrypt_dslr2.py` Silently Overwrites Output
+### 9.10 `decrypt_dslr2.py` Now Requires `--force`
 
-`decrypt_dslr2.py` does no clobber check; `--out` existing is overwritten directly; `decrypt_firmware.py` / `decrypt_dslr.py` require `--force`. Back up before batch processing, or confirm the target path first.
+`decrypt_dslr2.py` matches `decrypt_firmware.py` / `decrypt_dslr.py`: if `--out` or its `.modules` directory already exists, `--force` is required, otherwise it exits with code 2. Back up before batch processing, or overwrite explicitly.
 
 ---
 
