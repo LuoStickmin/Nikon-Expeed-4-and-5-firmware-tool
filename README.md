@@ -56,7 +56,6 @@
 ### 1.2 本仓库不做什么
 
 - 不涉及 Z 系列新包装（`0x260` 标签）——工具会明确识别并拒绝，payload 加密未破。
-- 不重签名、不提供刷机流程；CRC 校验只证明完整性，**不证明真实性**。上游仓库 [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool) 的 Z 8/Z 9 重打包与签名密钥恢复（`repack_firmware.py`、`solve_signature_e7.py`）没有随本仓库提供。
 - 不附带固件样本或完整加密语料（仓库只含 `key_all.json` 与脚本），因此无法在本仓库内重跑密钥恢复；使用需自备镜像。
 
 ---
