@@ -105,12 +105,14 @@ The directory parser (`decrypt_firmware.parse_table`) enforces: `directory_size 
 | Wrapper | File header | Space tag position | Body start | Author's local samples (not shipped) |
 | --- | --- | --- | --- | --- |
 | **A** | none | `0x00` | `0x00` | `D750_0115.bin` (encrypted original), `D810_0114.bin` (plaintext container) |
-| **B** | 32-byte header: 20B SHA-1 digest + 12B unidentified | `0x20` | `0x20` | `D850_0131.bin`, `D5__0150.bin` (both plaintext containers) |
+| **B** | 32-byte header: 20B SHA-1 digest + 12B unidentified | `0x20` | `0x20` | `D850_0131.bin`, `D5__0150.bin` (plaintext containers), `D3400_0113.bin` (encrypted) |
 | **C** | longer prefix (not fully analyzed) | `0x260` | — | none; belongs to Z 5II / Z 50II / Z 6III / ZR new wrapper, tool refuses |
 
 Key point: **the keystream phase is anchored at the space tag (body start) as 0**, independent of the header length. Hence the same tables handle both wrappers A and B; `key_all.json`'s `sources[].header` records each image's body start.
 
 Wrapper B's 32-byte header, per the upstream [Firmware format](https://github.com/WonderLantern/nikon-fw-key-tool#firmware-format) definition, is `[20-byte SHA-1 digest][12-byte unidentified]`, with the digest satisfying `header[0:20] == SHA1(decrypted_body || K8)`; `K8` is a model-specific 8-byte key, so this is a "keyed digest", not an asymmetric signature. The tools here only decrypt/carve and **do not verify or recompute** it; the measured DSLR sample's prefix equals neither `SHA1(body)` nor `SHA1(body[:-16])`, consistent with keyed-digest behavior, but the DSLR `K8` is unknown and this repository has not verified it. The upstream covers the legacy wrapper with the tag at `0x20`; the DSLR old-wrapper with the tag at `0x00` (D750/D810-class) is the adaptation added by this repository (`decrypt_dslr*.py`).
+
+**D3400 is an Expeed 4 wrapper-B variant.** Together with D5600 (also `0x20` in the table), it shows the wrapper is not a generation property: E4 bodies can be A (D7200/D750/D810) or B. The byte-level check of `D3400_0113` is in [docs/d3400-wrapper-b.en.md](docs/d3400-wrapper-b.en.md): the first 20 header bytes match neither `SHA1(body)` nor `SHA1(body[:-16])`; the trailing 12 bytes are non-zero and unidentified; `K8` is not recovered. Module-level patches remain valid, but a full image is refused by default (exit 8).
 
 ---
 
@@ -243,6 +245,8 @@ But it must be emphasized: **CRC is an integrity check, not a signature.** "Stru
 | D810 | Expeed 4 | 0102, 0114 | `0x00` |
 | D850 | Expeed 5 | 0101, 0131 | `0x20` |
 
+`D3400` (0110/0113) and `D5600` (0120) are Expeed 4 wrapper-B samples: the wrapper is not a generation property. See [docs/d3400-wrapper-b.en.md](docs/d3400-wrapper-b.en.md) for the byte-level analysis.
+
 SHA-256 of the three tables (`key_all.json`'s `self_check`):
 
 ```
@@ -262,7 +266,7 @@ Another corroboration: the first 16 bytes of these three tables' SHA-256 match t
 | Input | Detection | Handling | Status |
 | --- | --- | --- | --- |
 | Encrypted original, tag at `0x00` | `raw[0:0x20]` all `0x20` | `HDR=0`, XOR body | ✅ Verified (`D750_0115.bin`) |
-| Encrypted original, tag at `0x20` | `raw[0x20:0x40]` all `0x20` | `HDR=0x20`, XOR body | ✅ Regression-verified (no encrypted sample shipped) |
+| Encrypted original, tag at `0x20` | `raw[0x20:0x40]` all `0x20` | `HDR=0x20`, XOR body | ✅ Verified (`D3400_0113.bin`, encrypted B) |
 | **Plaintext container** of the same structure | body directory parses directly | Skip XOR, carve by directory | ✅ Verified (D810 / D850 / D5 samples) |
 | Z-series new wrapper | 32 spaces at `0x260` | Refuse | ❌ Unbroken |
 | Bare module / archive / updater exe | No space tag | Refuse | ❌ Extract first |
@@ -274,7 +278,7 @@ Another corroboration: the first 16 bytes of these three tables' SHA-256 match t
 - **Plaintext containers can go through the decryptor.** `decrypt_dslr2.py` validates as a plaintext container first (directory + both CRC levels) and only XORs on failure, so it will not double-XOR a plaintext container.
 - **Limits of repacking.** `repack_firmware.py` can rebuild the directory, recompute module and package CRCs, and re-encrypt according to the input; the result passes `validate_firmware`'s directory/CRC checks. But wrapper B's 32-byte header carries a keyed SHA-1 digest (`K8`); the DSLR `K8` is unknown, so once the body changes the digest cannot be recomputed — the tool **refuses to write** (exit 8) unless `--allow-stale-header` is given. **This is not re-signing and does not guarantee the camera accepts it**, so the repository still ships no flashable artifact.
 - **Depends on corpus statistics.** Stages 3/5 assume fill is predominantly `0x00`; if a 64 KiB block is predominantly `0xFF`, manual verification is needed (`fill_t3.py` and CRC enumeration exist for this).
-- **Scheme is determined by wrapper, not by EXPEED generation.** Upstream confirmed Z 8/Z 9 (EXPEED 7) still use the old wrapper, while Z f/Z 5II/Z 50II/Z 6III/ZR use the new scheme; "Expeed 4/5" here is just the customary corpus-scope label and cannot be used to infer model or generation.
+- **Scheme is determined by wrapper, not by EXPEED generation.** Upstream confirmed Z 8/Z 9 (EXPEED 7) still use the old wrapper, while Z f/Z 5II/Z 50II/Z 6III/ZR use the new scheme; "Expeed 4/5" here is just the customary corpus-scope label and cannot be used to infer model or generation. D3400 is the "E4 + B" example (see [docs/d3400-wrapper-b.en.md](docs/d3400-wrapper-b.en.md)).
 
 ---
 
