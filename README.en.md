@@ -8,6 +8,8 @@
 >
 > **Related project:** the D750 high-bitrate video modification (64/60 Mbps), QEMU validation, and LCD dump have moved to [LuoStickmin/D750-QEMU](https://github.com/LuoStickmin/D750-QEMU); this repository focuses on the firmware container, key recovery, and repacking.
 
+**Update (2026-11-14):** documented the D3400 wrapper-B variant (Expeed 4 can also be B; the header digest depends on the unknown `K8`), see [docs/d3400-wrapper-b.en.md](docs/d3400-wrapper-b.en.md).
+
 **Update (2026-11-05):** added the repacking tool ([§5.8](#58-repacking)).
 
 ![scope](https://img.shields.io/badge/scope-Expeed%204%2F5%20DSLR-blue)

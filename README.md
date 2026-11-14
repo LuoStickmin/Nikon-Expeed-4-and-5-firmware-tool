@@ -8,6 +8,8 @@
 >
 > **相关项目 / Related project：** D750 高码率视频修改（64/60 Mbps）、QEMU 验证与 LCD dump 已拆分到 [LuoStickmin/D750-QEMU](https://github.com/LuoStickmin/D750-QEMU)；本仓库专注固件容器、密钥恢复与重打包。
 
+**Update (2026-11-14):** 记录 D3400 的 packaging B 变体（Expeed 4 也可是 B；头部摘要依赖未知的 `K8`），见 [docs/d3400-wrapper-b.md](docs/d3400-wrapper-b.md)。
+
 **Update (2026-11-05):** 新增重打包工具（[§5.8](#58-重新封包)）。
 
 ![scope](https://img.shields.io/badge/scope-Expeed%204%2F5%20DSLR-blue)
