@@ -56,7 +56,6 @@ Three core conclusions:
 ### 1.2 What this repository does not do
 
 - It does not cover the new Z-series wrapper (`0x260` tag) — the tool explicitly recognizes and refuses it; payload encryption is unbroken.
-- It does not re-sign or provide any flashing workflow; CRC validation only proves integrity, **not authenticity**. The upstream repository [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool)'s Z 8/Z 9 repacking and signing-key recovery (`repack_firmware.py`, `solve_signature_e7.py`) is not included here.
 - It does not ship firmware samples or the full encrypted corpus (only `key_all.json` and the scripts), so key recovery cannot be rerun inside this repository; bring your own image.
 
 ---
