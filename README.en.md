@@ -8,11 +8,11 @@
 >
 > **Related project:** the D750 high-bitrate video modification (64/60 Mbps), QEMU validation, and LCD dump have moved to [LuoStickmin/D750-QEMU](https://github.com/LuoStickmin/D750-QEMU); this repository focuses on the firmware container, key recovery, and repacking.
 
-**Update (2026-11-15):** recovered the wrapper-B `K8` for D850 / D5 / D500 / D3400, with a reproducible static method, see [docs/k8-dslr.en.md](docs/k8-dslr.en.md).
+**Recent updates** — add one entry at the top for every change; full record in [CHANGELOG.md](CHANGELOG.md).
 
-**Update (2026-11-14):** documented the D3400 wrapper-B variant (Expeed 4 can also be B; the header digest depends on the unknown `K8`), see [docs/d3400-wrapper-b.en.md](docs/d3400-wrapper-b.en.md).
-
-**Update (2026-11-05):** added the repacking tool ([§5.8](#58-repacking)).
+- **2026-11-15** — recovered the wrapper-B `K8` for D850 / D5 / D500 / D3400; added `k8_solve.c` and `keys/`, see [docs/k8-dslr.en.md](docs/k8-dslr.en.md).
+- **2026-11-14** — documented the D3400 wrapper-B variant (Expeed 4 can also be B), see [docs/d3400-wrapper-b.en.md](docs/d3400-wrapper-b.en.md).
+- **2026-11-05** — added the repacking tool `repack_firmware.py` ([§5.8](#58-repacking)).
 
 ![scope](https://img.shields.io/badge/scope-Expeed%204%2F5%20DSLR-blue)
 ![verified](https://img.shields.io/badge/verified-12%20models%20%7C%2022%20images-brightgreen)
@@ -113,7 +113,7 @@ The directory parser (`decrypt_firmware.parse_table`) enforces: `directory_size 
 
 Key point: **the keystream phase is anchored at the space tag (body start) as 0**, independent of the header length. Hence the same tables handle both wrappers A and B; `key_all.json`'s `sources[].header` records each image's body start.
 
-Wrapper B's 32-byte header, per the upstream [Firmware format](https://github.com/WonderLantern/nikon-fw-key-tool#firmware-format) definition, is `[20-byte SHA-1 digest][12-byte unidentified]`, with the digest satisfying `header[0:20] == SHA1(decrypted_body || K8)`; `K8` is a model-specific 8-byte key, so this is a "keyed digest", not an asymmetric signature. The tools here only decrypt/carve and **do not verify or recompute** it; the measured DSLR sample's prefix equals neither `SHA1(body)` nor `SHA1(body[:-16])`, consistent with keyed-digest behavior, but four DSLR `K8` values are now recovered (D850/D5/D500/D3400), see [docs/k8-dslr.en.md](docs/k8-dslr.en.md). The upstream covers the legacy wrapper with the tag at `0x20`; the DSLR old-wrapper with the tag at `0x00` (D750/D810-class) is the adaptation added by this repository (`decrypt_dslr*.py`).
+Wrapper B's 32-byte header, per the upstream [Firmware format](https://github.com/WonderLantern/nikon-fw-key-tool#firmware-format) definition, is `[20-byte SHA-1 digest][12-byte unidentified]`, with the digest satisfying `header[0:20] == SHA1(decrypted_body || K8)`; `K8` is a model-specific 8-byte key, so this is a "keyed digest", not an asymmetric signature. `repack_firmware.py --k8` now verifies the stock digest and recomputes it for a new body (the solver is `k8_solve.c`); the measured DSLR sample's prefix equals neither `SHA1(body)` nor `SHA1(body[:-16])`, consistent with keyed-digest behavior. Four DSLR `K8` values are now recovered (D850/D5/D500/D3400), see [docs/k8-dslr.en.md](docs/k8-dslr.en.md). The upstream covers the legacy wrapper with the tag at `0x20`; the DSLR old-wrapper with the tag at `0x00` (D750/D810-class) is the adaptation added by this repository (`decrypt_dslr*.py`).
 
 **D3400 is an Expeed 4 wrapper-B variant.** Together with D5600 (also `0x20` in the table), it shows the wrapper is not a generation property: E4 bodies can be A (D7200/D750/D810) or B. The byte-level check of `D3400_0113` is in [docs/d3400-wrapper-b.en.md](docs/d3400-wrapper-b.en.md): the first 20 header bytes match neither `SHA1(body)` nor `SHA1(body[:-16])`; the trailing 12 bytes are non-zero and unidentified; `K8` is now recovered as `AF08FBDBB582B587` (see [docs/k8-dslr.en.md](docs/k8-dslr.en.md)). Module-level patches remain valid, and a full image can now be repacked with `--k8`.
 

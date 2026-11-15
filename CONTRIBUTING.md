@@ -64,6 +64,17 @@ python decrypt_dslr2.py --key key_all.json --firmware <image>.bin --out <image>.
 - **纯分析脚本的改动**：至少在现有样本上跑通，并在 PR 描述里贴输出摘要。
 - **README / 文档改动**：直接提。
 - **新增依赖**：请说明为什么不能只用标准库 + numpy。capstone 保持可选（见 README §9.9）。
+- **所有改动**：在 `README.md` / `README.en.md` 顶部「最近更新」追加一条（`日期 — 一句话 + 链接`），并在 [CHANGELOG.md](CHANGELOG.md) 补一条；见下节。
+
+## 更新日志惯例
+
+为了让关注者及时看到更新，每次实质性改动（新发现、新工具、行为变化、新文档）都要：
+
+1. 在 `README.md` 和 `README.en.md` 顶部「最近更新 / Recent updates」各加一条，格式 `**YYYY-MM-DD** — 一句话 + 链接`；
+2. 在 [CHANGELOG.md](CHANGELOG.md) 对应日期下补更完整的记录；
+3. 顶部只保留最近 3–5 条，更早的留在 CHANGELOG.md。
+
+纯错别字、死链修正可以只改正文，不强制记日志。
 
 ## 请不要提交
 
@@ -155,6 +166,17 @@ python decrypt_dslr2.py --key key_all.json --firmware <image>.bin --out <image>.
 - **Pure analysis-script changes**: at least run on existing samples and paste an output summary in the PR description.
 - **README / documentation changes**: submit directly.
 - **New dependencies**: explain why standard library + numpy is insufficient. capstone stays optional (see README §9.9).
+- **Every change**: add an entry to the top of `README.md` / `README.en.md` under "Recent updates" (`date — one sentence + link`) and a line in [CHANGELOG.md](CHANGELOG.md); see the next section.
+
+## Changelog convention
+
+So that watchers do not miss updates, every substantive change (new finding, new tool, behaviour change, new doc) should:
+
+1. add one entry to the top of `README.md` and `README.en.md` under "最近更新 / Recent updates", formatted `**YYYY-MM-DD** — one sentence + link`;
+2. add a fuller record under the matching date in [CHANGELOG.md](CHANGELOG.md);
+3. keep only the latest 3–5 entries at the top; older ones stay in CHANGELOG.md.
+
+Typos and dead-link fixes may skip the log.
 
 ## Please do not submit
 

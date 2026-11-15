@@ -2,6 +2,8 @@
 
 简短记录仓库层面的变化；细节见对应文档。
 
+> 惯例：`README.md` / `README.en.md` 顶部保留最近 3–5 条摘要，本文件记录完整历史（见 CONTRIBUTING「更新日志惯例」）。
+
 ## 2026-11-15
 
 - 新增 [docs/k8-dslr.md](docs/k8-dslr.md)（[EN](docs/k8-dslr.en.md)）：恢复 D850 C:1.31、D5 C:1.50、D500 C:1.40、D3400 C:1.13 的 packaging B `K8`。

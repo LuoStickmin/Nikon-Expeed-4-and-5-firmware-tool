@@ -8,11 +8,11 @@
 >
 > **相关项目 / Related project：** D750 高码率视频修改（64/60 Mbps）、QEMU 验证与 LCD dump 已拆分到 [LuoStickmin/D750-QEMU](https://github.com/LuoStickmin/D750-QEMU)；本仓库专注固件容器、密钥恢复与重打包。
 
-**Update (2026-11-15):** 恢复 D850 / D5 / D500 / D3400 的 packaging B `K8`，并给出可复现的静态求解方法，见 [docs/k8-dslr.md](docs/k8-dslr.md)。
+**最近更新 / Recent updates** — 每次改动在顶部追加一条，完整记录见 [CHANGELOG.md](CHANGELOG.md)。
 
-**Update (2026-11-14):** 记录 D3400 的 packaging B 变体（Expeed 4 也可是 B；头部摘要依赖未知的 `K8`），见 [docs/d3400-wrapper-b.md](docs/d3400-wrapper-b.md)。
-
-**Update (2026-11-05):** 新增重打包工具（[§5.8](#58-重新封包)）。
+- **2026-11-15** — 恢复 D850 / D5 / D500 / D3400 的 packaging B `K8`，新增 `k8_solve.c` 与 `keys/`，方法与证据见 [docs/k8-dslr.md](docs/k8-dslr.md)。
+- **2026-11-14** — 记录 D3400 的 packaging B 变体（Expeed 4 也可是 B），见 [docs/d3400-wrapper-b.md](docs/d3400-wrapper-b.md)。
+- **2026-11-05** — 新增重打包工具 `repack_firmware.py`（[§5.8](#58-重新封包)）。
 
 ![scope](https://img.shields.io/badge/scope-Expeed%204%2F5%20DSLR-blue)
 ![verified](https://img.shields.io/badge/verified-12%20models%20%7C%2022%20images-brightgreen)
@@ -113,7 +113,7 @@ len(body)-2     14 × 0x00            尾部填充
 
 关键点：**密钥流相位以空格标签（body 起点）为 0**，与文件头长度无关。因此同一套表可以同时处理 A 与 B 两种包装；`key_all.json` 的 `sources[].header` 记录的正是各镜像的 body 起点。
 
-包装 B 的 32 字节头部，按上游 [Firmware format](https://github.com/WonderLantern/nikon-fw-key-tool#firmware-format) 的定义是 `[20 字节 SHA-1 摘要][12 字节未识别]`，摘要满足 `header[0:20] == SHA1(decrypted_body || K8)`；`K8` 是机型专属的 8 字节密钥，因此这是“带密钥摘要”，不是非对称签名。本仓库的工具只解密/切片，不负责校验；实测 DSLR 样本的前缀既不等于 `SHA1(body)` 也不等于 `SHA1(body[:-16])`，符合带密钥摘要的行为。四个 DSLR 机型的 `K8` 现已恢复（D850 / D5 / D500 / D3400），见 [docs/k8-dslr.md](docs/k8-dslr.md)。上游覆盖的 legacy 包装标签在 `0x20`；D750/D810 这类标签在 `0x00` 的 DSLR 旧包装是本仓库新增的适配（`decrypt_dslr*.py`）。
+包装 B 的 32 字节头部，按上游 [Firmware format](https://github.com/WonderLantern/nikon-fw-key-tool#firmware-format) 的定义是 `[20 字节 SHA-1 摘要][12 字节未识别]`，摘要满足 `header[0:20] == SHA1(decrypted_body || K8)`；`K8` 是机型专属的 8 字节密钥，因此这是“带密钥摘要”，不是非对称签名。本仓库的 `repack_firmware.py --k8` 现在会校验原镜像摘要并为新 body 重算（求解器见 `k8_solve.c`）；实测 DSLR 样本的前缀既不等于 `SHA1(body)` 也不等于 `SHA1(body[:-16])`，符合带密钥摘要的行为。四个 DSLR 机型的 `K8` 现已恢复（D850 / D5 / D500 / D3400），见 [docs/k8-dslr.md](docs/k8-dslr.md)。上游覆盖的 legacy 包装标签在 `0x20`；D750/D810 这类标签在 `0x00` 的 DSLR 旧包装是本仓库新增的适配（`decrypt_dslr*.py`）。
 
 **D3400 是 Expeed 4 里的 B 变体。** 它和 D5600（表中同为 `0x20`）说明包装方式不是世代属性：E4 既可以是 A（D7200/D750/D810），也可以是 B。对 `D3400_0113` 的逐字节复核见 [docs/d3400-wrapper-b.md](docs/d3400-wrapper-b.md)：32 字节头的前 20 字节既不等于 `SHA1(body)`，也不等于 `SHA1(body[:-16])`；后 12 字节非零、语义未识别；`K8` 已恢复为 `AF08FBDBB582B587`（见 [docs/k8-dslr.md](docs/k8-dslr.md)）。因此模块级补丁可用，完整镜像也可用 `--k8` 重算摘要。
 
