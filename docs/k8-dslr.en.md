@@ -12,6 +12,11 @@
 | D5 | C:1.50 | `1F0CE7E3DDA60907` | `3E` / `E9` | 65,536 | 1 |
 | D500 | C:1.40 | `66A13EE6A8573486` | `38` / `E3` | 65,536 | 1 |
 | D3400 | C:1.13 | `AF08FBDBB582B587` | `39` / `B5` | 65,536 | 1 |
+| D5600 | C:1.20 | `6FA0738BE53A7DE7` | `3B` / `1D` | 65,536 | 3* |
+
+\* D5600's three hits all yield the **same K8** (`3B`/`6E`/`CE` share the same `T1`
+value, so the keystreams are equivalent). The result is judged by identical K8,
+not by how many parameter sets coincide.
 
 The wrapper-B header digest is, per the upstream definition:
 
@@ -46,8 +51,8 @@ K8 = raw ^ ks                # raw = D319A081BBF520EF
   keystream `16 19 FF C8 74 03 75 CA` is reproduced exactly by `index=0x45,
   step=0xE3`.
 * `raw` is the 8 bytes at `0x10000080`: `D3 19 A0 81 BB F5 20 EF`. The same
-  constant reproduces all four headers, so it is shared by Expeed 4/5 DSLRs.
-* `T1` exists in all four images and is **byte-identical**:
+  constant reproduces all five headers, so it is shared by Expeed 4/5 DSLRs.
+* `T1` exists in all five images and is **byte-identical**:
 
   | Image | Offset of `T1` |
   | --- | --- |
@@ -75,12 +80,13 @@ overrides the digest start offset (default `0x20`).
 
 ## 4. Evidence
 
-1. **Unique match**: exactly one of 65,536 candidates passes a 160-bit digest per
-   model (false-positive probability ~2⁻¹⁴⁴).
+1. **Unique K8**: every candidate that passes the 160-bit digest points to the same
+   `K8` (usually one set, three equivalent sets for D5600); random-collision
+   probability ~2⁻¹⁴⁴.
 2. **Independent cross-check**: `repack_firmware.py --selftest --keep-tags`
    reports `header verified on input, recomputed (SHA1(body || K8))` and
-   byte-identical output for all four models; the encrypted D500/D3400 inputs also
-   pass `decrypt(repack) == plaintext`.
+   byte-identical output for all five models; the encrypted D500/D3400/D5600
+   inputs also pass `decrypt(repack) == plaintext`.
 3. **Consistency with the prior record**: D850's keystream, `raw` and
    `K8` (`C5005F49CFF65525`) match the external record exactly, anchoring the
    method.
@@ -102,7 +108,7 @@ python repack_firmware.py --firmware D3400_0113.bin --out out.bin ^
 
 ## 6. Limits
 
-- **`K8` is per-model**: all four values differ; do not reuse across models.
+- **`K8` is per-model**: all five values differ; do not reuse across models.
 - **Cross-version reuse is unverified**. Only one version per model was solved;
   other versions (D850 `0101`, D500 `0101`/`0111`, …) need their own 65,536 search.
 - **The plaintext container is required**. An encrypted image has a different body

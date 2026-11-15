@@ -1,0 +1,13 @@
+{
+  "model": "Nikon D5600",
+  "firmware_version": "C:1.20",
+  "K8": "6FA0738BE53A7DE7",
+  "self_check": "cbc35bb1613d2a5e4b9f7f82d33a1191a0077f78b2ade87eaecf5d9329613ff4",
+  "derivation": {
+    "keystream_index": "0x3B (0x6E/0xCE equivalent)",
+    "step": "0x1D",
+    "raw_0x10000080": "D319A081BBF520EF",
+    "method": "K8 = raw XOR keystream(T0[index], step); step = T1[seed[0]]",
+    "recovered": "static brute force over index x step, verified against header digest"
+  }
+}
