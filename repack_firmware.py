@@ -38,13 +38,13 @@ decrypt_firmware.validate_firmware() before anything is written.
         --patch-module b1010_115a.bin:0x1000:deadbeef --out D750_0115.patched.bin
 
 Header digest (packaging B only): the 32-byte header's first 20 bytes are
-SHA1(decrypted_body || K8), where K8 is a per-model 8-byte key. K8 has not
-been recovered for the DSLR samples, so the header is copied verbatim. If an
-edit changes the body, the copied digest is guaranteed stale: the tool refuses
-to write such an image unless --allow-stale-header is passed. Pass --k8 with a
-JSON file ({"K8": "<16 hex chars>", "self_check": "<sha256>"} is the format
-produced for the upstream Z 8/Z 9 case) to verify the stock digest and
-recompute it for the output.
+SHA1(decrypted_body || K8), where K8 is a per-model 8-byte key. Pass --k8 with
+a JSON file ({"K8": "<16 hex chars>", "self_check": "<sha256>"}) to verify the
+stock digest and recompute it for the output. --k8 also accepts a directory of
+such files: every key is tried against the stock digest and the matching one is
+used, so the model does not have to be known in advance. Without --k8 the
+header is copied verbatim and any body edit is refused (exit 8) as stale unless
+--allow-stale-header is passed.
 
 Directory tags: the 8 reserved bytes are zero in every DSLR sample except the
 D750 `_wma_ver01.00.00` entry, whose tag is ASCII `crc.bin`. A strict
@@ -126,6 +126,38 @@ def load_k8(path):
                    "K8 fails its own self_check\n  recorded %s\n  actual   %s"
                    % (doc["self_check"], got))
     return k8
+
+
+def load_k8_specs(spec):
+    """Return [(k8, label)] for one key file or every *.json in a directory.
+
+    A directory is read in name order and each file is validated on its own, so
+    one malformed key does not hide the others; unusable files are skipped with
+    a note and the caller tries whatever remains against the stock digest.
+    """
+    if os.path.isdir(spec):
+        names = sorted(n for n in os.listdir(spec) if n.lower().endswith(".json"))
+        if not names:
+            fw.die(fw.EX_KEY, "%s contains no *.json key files" % spec)
+        out = []
+        for name in names:
+            path = os.path.join(spec, name)
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    doc = json.load(fh)
+                k8 = bytes.fromhex(doc["K8"])
+                if len(k8) != 8:
+                    raise ValueError("K8 is %d bytes, expected 8" % len(k8))
+                if "self_check" in doc and doc["self_check"] != hashlib.sha256(k8).hexdigest():
+                    raise ValueError("self_check mismatch")
+            except (OSError, ValueError, KeyError) as exc:
+                print("note: skipping %s (%s)" % (path, exc))
+                continue
+            out.append((k8, name))
+        if not out:
+            fw.die(fw.EX_KEY, "no usable K8 in %s" % spec)
+        return out
+    return [(load_k8(spec), os.path.basename(spec))]
 
 
 def xor_stream(data, hdr, tables):
@@ -403,8 +435,9 @@ def main(argv=None):
                     help="key JSON from extract_key.py; needed for encrypted input "
                          "or --encrypt")
     ap.add_argument("--k8",
-                    help="signature key JSON with K8; verifies and recomputes the "
-                         "packaging B header digest")
+                    help="signature key JSON with K8, or a directory of *.json keys "
+                         "(the one matching the stock digest is used); verifies and "
+                         "recomputes the packaging B header digest")
     ap.add_argument("--modules-dir", metavar="DIR",
                     help="replace every payload with the same-named file in DIR")
     ap.add_argument("--replace-module", action="append", default=[], metavar="MODULE=PATH",
@@ -456,11 +489,13 @@ def main(argv=None):
 
     tables = fw.load_key(args.key) if args.key else None
     k8 = None
+    k8_label = None
+    k8_specs = []
     if args.k8:
-        k8 = load_k8(args.k8)
         if hdr != HDR_B:
             print("note: --k8 ignored; packaging %s has no header digest" % packaging(hdr))
-            k8 = None
+        else:
+            k8_specs = load_k8_specs(args.k8)
 
     plain_in, mods, encoding = decode(raw, hdr, tables, args.firmware)
     body_in = memoryview(plain_in)[hdr:]
@@ -492,13 +527,18 @@ def main(argv=None):
     # Packaging B's digest is keyed; verify the stock one before touching it.
     digest_state = "n/a (packaging A has no header digest)"
     if hdr == HDR_B:
-        if k8 is not None:
-            want = sign(body_in, k8)
-            if want != raw[:20]:
+        if k8_specs:
+            for cand, label in k8_specs:
+                if sign(body_in, cand) == raw[:20]:
+                    k8, k8_label = cand, label
+                    break
+            if k8 is None:
                 fw.die(fw.EX_KEY,
-                       "this K8 does not verify %s\n  header   %s\n  computed %s\n"
-                       "       Wrong camera, or the image is already modified."
-                       % (args.firmware, raw[:20].hex(), want.hex()))
+                       "no supplied K8 verifies %s\n  header   %s\n  tried    %s\n"
+                       "       Wrong camera/version, or the image is already modified."
+                       % (args.firmware, raw[:20].hex(),
+                          ", ".join(label for _, label in k8_specs)))
+            digest_state = "verified on input (%s)" % k8_label
         else:
             digest_state = "not verified (K8 unknown)"
 
@@ -509,7 +549,8 @@ def main(argv=None):
     if hdr == HDR_B:
         if k8 is not None:
             header_out = sign(body_out, k8) + raw[20:32]
-            digest_state = "verified on input, recomputed (SHA1(body || K8))"
+            digest_state = ("verified (%s), recomputed (SHA1(body || K8))"
+                            % k8_label)
         elif body_same:
             digest_state = "preserved (body unchanged)"
         else:
@@ -614,6 +655,8 @@ def main(argv=None):
     else:
         print("  tags       already zero")
     print("  header     %s" % digest_state)
+    if k8_label:
+        print("  k8         %s" % k8_label)
     print("  checksums  %d module CRC(s) + package CRC" % len(mods))
     print("  verify     %s" % strict_note)
     if encrypted_out:

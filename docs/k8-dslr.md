@@ -110,11 +110,20 @@ python repack_firmware.py --firmware D3400_0113.bin --out out.bin ^
 ## 7. 对重打包的影响
 
 `repack_firmware.py` 之前因 `K8` 未知而对 body 变更默认拒绝写盘（exit 8）。
-现在四个机型都可以：
+现在这些机型都可以：
 
 ```powershell
-python repack_firmware.py --firmware stock.bin --out new.bin --k8 keys/d850_0131_k8.json ...
+python repack_firmware.py --firmware stock.bin --out new.bin --k8 keys/ ...
 ```
 
-工具会先验 stock 的头部摘要，再为新 body 重算；`--allow-stale-header` 仍保留给
-CRC/QEMU 测试。
+`--k8` 也接受**目录**：工具会逐个试目录里的 `*.json`，用能验证 stock 头部摘要的
+那一把，并把命中的文件名写进输出；都不匹配时 exit 3 并列出试过的 key。这样不
+需要事先知道机型，也不会拿错 key：
+
+```
+  header     verified (d850_0131_k8.json), recomputed (SHA1(body || K8))
+  k8         d850_0131_k8.json
+```
+
+格式损坏或 `self_check` 不符的文件会被跳过并打印 `note: skipping ...`，不影响其余
+key。`--allow-stale-header` 仍保留给 CRC/QEMU 测试。

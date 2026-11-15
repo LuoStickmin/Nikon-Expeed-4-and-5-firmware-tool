@@ -118,11 +118,20 @@ python repack_firmware.py --firmware D3400_0113.bin --out out.bin ^
 ## 7. Effect on repacking
 
 `repack_firmware.py` previously refused any body change for wrapper B (exit 8)
-because `K8` was unknown. All four models are now covered:
+because `K8` was unknown. All of these models are now covered:
 
 ```powershell
-python repack_firmware.py --firmware stock.bin --out new.bin --k8 keys/d850_0131_k8.json ...
+python repack_firmware.py --firmware stock.bin --out new.bin --k8 keys/ ...
 ```
 
-The tool verifies the stock digest first, then recomputes it for the new body.
+`--k8` also accepts a **directory**: every `*.json` in it is tried, the one that
+verifies the stock digest is used, and the matching file name is printed:
+
+```
+  header     verified (d850_0131_k8.json), recomputed (SHA1(body || K8))
+  k8         d850_0131_k8.json
+```
+
+This removes the need to know the model up front. Malformed files or ones with a
+bad `self_check` are skipped with `note: skipping ...` and do not hide the rest.
 `--allow-stale-header` remains for CRC/QEMU testing.
