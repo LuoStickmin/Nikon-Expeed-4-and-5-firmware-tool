@@ -1,0 +1,13 @@
+{
+  "model": "Nikon D500",
+  "firmware_version": "C:1.40",
+  "K8": "66A13EE6A8573486",
+  "self_check": "11454f87ea06163b59672a381682b97b58866f00322e5d0686685b107e697c91",
+  "derivation": {
+    "keystream_index": "0x38",
+    "step": "0xE3",
+    "raw_0x10000080": "D319A081BBF520EF",
+    "method": "K8 = raw XOR keystream(T0[index], step); step = T1[seed[0]]",
+    "recovered": "static brute force over index x step, verified against header digest"
+  }
+}

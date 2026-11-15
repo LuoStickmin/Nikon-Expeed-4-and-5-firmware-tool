@@ -1,0 +1,13 @@
+{
+  "model": "Nikon D3400",
+  "firmware_version": "C:1.13",
+  "K8": "AF08FBDBB582B587",
+  "self_check": "749237c5e12cfbf8d70e34ef363d9de3e243a6bb81cc9d6b7ab3d29a00580cac",
+  "derivation": {
+    "keystream_index": "0x39",
+    "step": "0xB5",
+    "raw_0x10000080": "D319A081BBF520EF",
+    "method": "K8 = raw XOR keystream(T0[index], step); step = T1[seed[0]]",
+    "recovered": "static brute force over index x step, verified against header digest"
+  }
+}

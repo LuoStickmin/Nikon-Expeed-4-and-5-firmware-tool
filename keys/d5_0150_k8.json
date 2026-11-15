@@ -1,0 +1,13 @@
+{
+  "model": "Nikon D5",
+  "firmware_version": "C:1.50",
+  "K8": "1F0CE7E3DDA60907",
+  "self_check": "6bf963db7995d011b27cc8cab8ba9cad5384642e2a9715533096102afbac85e9",
+  "derivation": {
+    "keystream_index": "0x3E",
+    "step": "0xE9",
+    "raw_0x10000080": "D319A081BBF520EF",
+    "method": "K8 = raw XOR keystream(T0[index], step); step = T1[seed[0]]",
+    "recovered": "static brute force over index x step, verified against header digest"
+  }
+}

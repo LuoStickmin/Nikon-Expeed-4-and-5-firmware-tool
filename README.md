@@ -8,6 +8,8 @@
 >
 > **相关项目 / Related project：** D750 高码率视频修改（64/60 Mbps）、QEMU 验证与 LCD dump 已拆分到 [LuoStickmin/D750-QEMU](https://github.com/LuoStickmin/D750-QEMU)；本仓库专注固件容器、密钥恢复与重打包。
 
+**Update (2026-11-15):** 恢复 D850 / D5 / D500 / D3400 的 packaging B `K8`，并给出可复现的静态求解方法，见 [docs/k8-dslr.md](docs/k8-dslr.md)。
+
 **Update (2026-11-14):** 记录 D3400 的 packaging B 变体（Expeed 4 也可是 B；头部摘要依赖未知的 `K8`），见 [docs/d3400-wrapper-b.md](docs/d3400-wrapper-b.md)。
 
 **Update (2026-11-05):** 新增重打包工具（[§5.8](#58-重新封包)）。
@@ -111,9 +113,9 @@ len(body)-2     14 × 0x00            尾部填充
 
 关键点：**密钥流相位以空格标签（body 起点）为 0**，与文件头长度无关。因此同一套表可以同时处理 A 与 B 两种包装；`key_all.json` 的 `sources[].header` 记录的正是各镜像的 body 起点。
 
-包装 B 的 32 字节头部，按上游 [Firmware format](https://github.com/WonderLantern/nikon-fw-key-tool#firmware-format) 的定义是 `[20 字节 SHA-1 摘要][12 字节未识别]`，摘要满足 `header[0:20] == SHA1(decrypted_body || K8)`；`K8` 是机型专属的 8 字节密钥，因此这是“带密钥摘要”，不是非对称签名。本仓库的工具只解密/切片，**不校验也不重算**它；实测 DSLR 样本的前缀既不等于 `SHA1(body)` 也不等于 `SHA1(body[:-16])`，符合带密钥摘要的行为，但 DSLR 的 `K8` 未知，本仓库未做验证。上游覆盖的 legacy 包装标签在 `0x20`；D750/D810 这类标签在 `0x00` 的 DSLR 旧包装是本仓库新增的适配（`decrypt_dslr*.py`）。
+包装 B 的 32 字节头部，按上游 [Firmware format](https://github.com/WonderLantern/nikon-fw-key-tool#firmware-format) 的定义是 `[20 字节 SHA-1 摘要][12 字节未识别]`，摘要满足 `header[0:20] == SHA1(decrypted_body || K8)`；`K8` 是机型专属的 8 字节密钥，因此这是“带密钥摘要”，不是非对称签名。本仓库的工具只解密/切片，不负责校验；实测 DSLR 样本的前缀既不等于 `SHA1(body)` 也不等于 `SHA1(body[:-16])`，符合带密钥摘要的行为。四个 DSLR 机型的 `K8` 现已恢复（D850 / D5 / D500 / D3400），见 [docs/k8-dslr.md](docs/k8-dslr.md)。上游覆盖的 legacy 包装标签在 `0x20`；D750/D810 这类标签在 `0x00` 的 DSLR 旧包装是本仓库新增的适配（`decrypt_dslr*.py`）。
 
-**D3400 是 Expeed 4 里的 B 变体。** 它和 D5600（表中同为 `0x20`）说明包装方式不是世代属性：E4 既可以是 A（D7200/D750/D810），也可以是 B。对 `D3400_0113` 的逐字节复核见 [docs/d3400-wrapper-b.md](docs/d3400-wrapper-b.md)：32 字节头的前 20 字节既不等于 `SHA1(body)`，也不等于 `SHA1(body[:-16])`；后 12 字节非零、语义未识别；`K8` 未恢复。因此模块级补丁可用，完整镜像默认拒绝写盘（exit 8）。
+**D3400 是 Expeed 4 里的 B 变体。** 它和 D5600（表中同为 `0x20`）说明包装方式不是世代属性：E4 既可以是 A（D7200/D750/D810），也可以是 B。对 `D3400_0113` 的逐字节复核见 [docs/d3400-wrapper-b.md](docs/d3400-wrapper-b.md)：32 字节头的前 20 字节既不等于 `SHA1(body)`，也不等于 `SHA1(body[:-16])`；后 12 字节非零、语义未识别；`K8` 已恢复为 `AF08FBDBB582B587`（见 [docs/k8-dslr.md](docs/k8-dslr.md)）。因此模块级补丁可用，完整镜像也可用 `--k8` 重算摘要。
 
 ---
 
@@ -275,7 +277,7 @@ T3  3617957facf8b21a5a3de0f3a1f6f27ca20d72c7208b196b2a8bec3076f39b49
 - **未收录的机型未验证。** 与 Expeed 4/5 同世代但不在上表的机型、以及更早（Expeed 3）或更晚（Z 系列）的机型，都不能假定适用；可以拿 `extract_key_mix.py` 试，但必须先过 CRC 验收。
 - **不区分机型的密钥 ≠ 不区分机型的容器。** 包装 A/B 的差异（32 字节头部）必须由 `HDR` 或自动识别处理，否则解密会整体错位。
 - **明文容器可以直接跑解密器。** `decrypt_dslr2.py` 先按明文容器完整校验（目录 + 两级 CRC），失败才 XOR，因此不会把明文容器二次 XOR。
-- **重打包的边界。** `repack_firmware.py` 可以重建目录、重算模块 CRC 与包 CRC、按输入重新加密，产物能通过 `validate_firmware` 的目录/CRC 校验；但包装 B 的 32 字节头部含带密钥的 SHA-1 摘要（`K8`），DSLR 的 `K8` 未知，body 一旦改变摘要就无法重算——工具默认**拒绝写盘**（exit 8），确需保留旧摘要时加 `--allow-stale-header`。**这不等于重签名，也不保证相机接受**，因此仓库仍不提供刷机产物。
+- **重打包的边界。** `repack_firmware.py` 可以重建目录、重算模块 CRC 与包 CRC、按输入重新加密，产物能通过 `validate_firmware` 的目录/CRC 校验；但包装 B 的 32 字节头部含带密钥的 SHA-1 摘要（`K8`），`K8` 已恢复的机型可用 `--k8` 在 body 改变后重算摘要；未恢复的机型则无法重算——工具默认**拒绝写盘**（exit 8），确需保留旧摘要时加 `--allow-stale-header`。**这不等于重签名，也不保证相机接受**，因此仓库仍不提供刷机产物。
 - **依赖语料的统计前提。** 阶段 3/5 假定填充以 `0x00` 为主；若某个 64 KiB 块以 `0xFF` 填充为主，需人工核对（`fill_t3.py` 与 CRC 枚举就是为此准备的）。
 - **方案由包装决定，不由 EXPEED 世代决定。** 上游已确认 Z 8/Z 9（EXPEED 7）仍用旧包装，而 Z f/Z 5II/Z 50II/Z 6III/ZR 是新方案；本仓库用“Expeed 4/5”只是语料范围的习惯叫法，不能据此反推机型或世代。D3400 就是“E4 + B”的实例（见 [docs/d3400-wrapper-b.md](docs/d3400-wrapper-b.md)）。
 
@@ -432,7 +434,7 @@ python repack_firmware.py --key key_all.json --firmware D850_0131.bin \
 - **tag 默认保留**：D750 的 `_wma_ver01.00.00` 原本是 ASCII `crc.bin`，默认按原字节保留，重封结果可逐字节复刻原镜像；需要“严格校验器干净”的产物时加 `--zero-tags`（会改变原字节，包装 B 还会让头摘要变 STALE）。两种情况下自检都会验证：实际产物（放宽 tag 规则）+ 归零后的同一容器（严格规则）。
 - **自检兜底**：`--selftest` 要求产物与输入逐字节相同，且可与 `--modules-dir` 组合——这正是“解包再原封不动封装回去”的回归测试；`--replace-module` / `--patch-module` 是有意改字节，不能与它同用。
 - **输出形态默认跟随输入**：加密进 → 加密出，明文进 → 明文出；`--encrypt` / `--plaintext` 可强制。
-- **头部摘要**：包装 B 的前 20 字节是 `SHA1(body || K8)`。DSLR 的 `K8` 未知；body 一变摘要就必然错，工具默认**拒绝写盘**（exit 8），确需保留旧摘要时加 `--allow-stale-header`。以后若恢复了 `K8`，用 `--k8 k8.json` 传入（`{"K8": "<16 hex>", "self_check": "<sha256>"}`），脚本会先验原镜像摘要，再为新 body 重算。
+- **头部摘要**：包装 B 的前 20 字节是 `SHA1(body || K8)`。`K8` 已恢复的机型（D850/D5/D500/D3400）用 `--k8 k8.json` 传入，重打包时会先验原镜像摘要、再为新 body 重算；未恢复的机型 body 一变摘要就必然错，工具默认**拒绝写盘**（exit 8），确需保留旧摘要时加 `--allow-stale-header`。JSON 格式为 `{"K8": "<16 hex>", "self_check": "<sha256>"}`。
 - 退出码见 [§5.6](#56-退出码)。
 
 ---

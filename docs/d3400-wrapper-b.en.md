@@ -159,8 +159,9 @@ print(hashlib.sha1(body[:-16]).digest() == d[:20])  # False
 
 - Only `D3400_0113` was byte-checked locally; `D3400_0110` is also recorded as
   `0x20` in `key_all.json` sources but was not re-tested here;
-- `K8` is not recovered; whether the camera/updater checks the digest was not
-  hardware-verified, and the tool assumes it does;
+- `K8` is now recovered: `AF08FBDBB582B587` (see
+  [k8-dslr.en.md](k8-dslr.en.md)); whether the camera/updater checks the digest
+  was not hardware-verified, and the tool assumes it does;
 - the 12 trailing header bytes are unidentified; they may relate to model,
   version, or the digest scheme;
 - no firmware samples are included; every conclusion is reproducible from a
@@ -169,5 +170,5 @@ print(hashlib.sha1(body[:-16]).digest() == d[:20])  # False
 ## 8. One sentence
 
 **D3400 extends wrapper B from E5 into E4: it proves the wrapper is not a
-generation property, and it makes `K8` the hard boundary for full-image
-repacking.**
+generation property, and it made `K8` the hard boundary for full-image
+repacking — a boundary lifted on 2026-11-15 (`AF08FBDBB582B587`).**

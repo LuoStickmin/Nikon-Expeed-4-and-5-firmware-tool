@@ -1,0 +1,17 @@
+{
+  "model": "Nikon D850",
+  "firmware_version": "C:1.31",
+  "packaging": "B (32-byte header at 0x00, 32-space label at 0x20)",
+  "K8": "C5005F49CFF65525",
+  "self_check": "1a9d07fff36e3dbd46c2d232536ac879235f47eab28ae00b60c60d540359fb29",
+  "digest": "SHA1(container[0x20:] || K8) must equal container[0:20]",
+  "provenance": "Provided to this machine via C:\\Users\\23795\\Desktop\\K8\\; originally derived from live D850 C:1.31 reads per k8 recovery.txt",
+  "scope_note": "Verifies the packaging-B header digest only. Not proof of image safety, provenance or authenticity, and not valid for any other model or version.",
+  "derivation": {
+    "keystream_index": "0x45",
+    "step": "0xE3",
+    "raw_0x10000080": "D319A081BBF520EF",
+    "method": "K8 = raw XOR keystream(T0[index], step); step = T1[seed[0]]",
+    "recovered": "static brute force over index x step, verified against header digest"
+  }
+}
