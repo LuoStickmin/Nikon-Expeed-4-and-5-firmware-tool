@@ -10,9 +10,13 @@
 
 **Recent updates** — add one entry at the top for every change; full record in [CHANGELOG.md](CHANGELOG.md).
 
+- **2026-11-16** — added [docs/different_packaging_models.en.md](docs/different_packaging_models.en.md) ([中文](docs/different_packaging_models.md)): A/B/`0x260` packaging, K8 status, cross-project evidence and tooling requirements.
 - **2026-11-15** — recovered the wrapper-B `K8` for D850 / D5 / D500 / D3400 / D5600; added `k8_solve.c` and `keys/`, see [docs/k8-dslr.en.md](docs/k8-dslr.en.md).
 - **2026-11-14** — documented the D3400 wrapper-B variant (Expeed 4 can also be B), see [docs/d3400-wrapper-b.en.md](docs/d3400-wrapper-b.en.md).
 - **2026-11-05** — added the repacking tool `repack_firmware.py` ([§5.8](#58-repacking)).
+
+> Packaging variants, K8 status and tooling requirements:
+> [docs/different_packaging_models.en.md](docs/different_packaging_models.en.md).
 
 ![scope](https://img.shields.io/badge/scope-Expeed%204%2F5%20DSLR-blue)
 ![verified](https://img.shields.io/badge/verified-12%20models%20%7C%2022%20images-brightgreen)

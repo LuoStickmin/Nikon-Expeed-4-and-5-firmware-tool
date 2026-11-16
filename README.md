@@ -10,9 +10,12 @@
 
 **最近更新 / Recent updates** — 每次改动在顶部追加一条，完整记录见 [CHANGELOG.md](CHANGELOG.md)。
 
+- **2026-11-16** — 新增 [docs/different_packaging_models.md](docs/different_packaging_models.md)（[EN](docs/different_packaging_models.en.md)）：汇总 A/B/`0x260` 封包、K8 状态、跨项目证据和工具需求。
 - **2026-11-15** — 恢复 D850 / D5 / D500 / D3400 / D5600 的 packaging B `K8`，新增 `k8_solve.c` 与 `keys/`，方法与证据见 [docs/k8-dslr.md](docs/k8-dslr.md)。
 - **2026-11-14** — 记录 D3400 的 packaging B 变体（Expeed 4 也可是 B），见 [docs/d3400-wrapper-b.md](docs/d3400-wrapper-b.md)。
 - **2026-11-05** — 新增重打包工具 `repack_firmware.py`（[§5.8](#58-重新封包)）。
+
+> 封包差异、K8 状态与工具需求速查：[docs/different_packaging_models.md](docs/different_packaging_models.md)。
 
 ![scope](https://img.shields.io/badge/scope-Expeed%204%2F5%20DSLR-blue)
 ![verified](https://img.shields.io/badge/verified-12%20models%20%7C%2022%20images-brightgreen)

@@ -4,6 +4,13 @@
 
 > 惯例：`README.md` / `README.en.md` 顶部保留最近 3–5 条摘要，本文件记录完整历史（见 CONTRIBUTING「更新日志惯例」）。
 
+## 2026-11-16
+
+- 新增 [docs/different_packaging_models.md](docs/different_packaging_models.md)（[EN](docs/different_packaging_models.en.md)）：汇总 packaging A/B/`0x260` 新封包、K8 状态、跨项目证据和工具需求。
+- README / README.en 顶部加入该文档的链接和短更新日志。
+- 明确“Expeed 4 ≠ A 包”：D3400/D5600 是 Expeed 4 的 B 包；A/B 与加密/明文互相独立。
+- 更新 D5600 的 K8 记录为 `6FA0738BE53A7DE7`（与 `docs/k8-dslr.md` 一致）。
+
 ## 2026-11-15
 
 - 新增 [docs/k8-dslr.md](docs/k8-dslr.md)（[EN](docs/k8-dslr.en.md)）：恢复 D850 C:1.31、D5 C:1.50、D500 C:1.40、D3400 C:1.13、D5600 C:1.20 的 packaging B `K8`。
