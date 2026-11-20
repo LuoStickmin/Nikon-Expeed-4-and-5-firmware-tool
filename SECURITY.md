@@ -8,7 +8,7 @@
 - 解密 / 目录解析 / 模块切片脚本
 - 一组静态分析探针
 
-本仓库 **不产出** 可刷写镜像，**不重签名**，**不涉及** 绕过相机或更新器的验签机制。仓库中的 `repack_firmware.py` 仅用于研究性重建容器（重算模块/包 CRC、可选重新加密）；包装 B 的头部摘要依赖机型专属 `K8`，目前已恢复 D850/D5/D500/D3400/D5600 五个值，可用 `--k8` 校验并重算（D7500 由外部项目恢复、值未公开，见 [docs/d7500-external-verification.md](docs/d7500-external-verification.md)）；未恢复的机型只能原样保留并标记 `STALE`。无论是否重算摘要，重打包产物都**不保证被相机接受**。
+本仓库 **不产出** 可刷写镜像，**不重签名**，**不涉及** 绕过相机或更新器的验签机制。仓库中的 `repack_firmware.py` 仅用于研究性重建容器（重算模块/包 CRC、可选重新加密）；包装 B 的头部摘要依赖机型专属 `K8`，目前已恢复 D850/D5/D500/D3400/D5600 五个值，另有 D7500 的 `DC73A05066D1868C`（来自 issue #2，见 [docs/d7500-external-verification.md](docs/d7500-external-verification.md)），都可用 `--k8` 校验并重算；未恢复的机型只能原样保留并标记 `STALE`。无论是否重算摘要，重打包产物都**不保证被相机接受**。
 
 `key_all.json` 中的三张表只用于解开官方更新包、复现容器结构。CRC 通过只证明完整性，不证明真实性。
 
@@ -49,7 +49,7 @@ This repository is an **interoperability research record for Nikon Expeed 4/5 fi
 - Decryption / directory parsing / module carving scripts
 - A set of static-analysis probes
 
-This repository **does not** produce flashable images, **does not** re-sign firmware, and **does not** involve bypassing camera or updater signature verification. `repack_firmware.py` exists only for research-grade container rebuilding (recompute module/package CRCs, optional re-encryption); wrapper B's header digest depends on the model-specific `K8`. The five values for D850/D5/D500/D3400/D5600 are recovered and can be verified/recomputed with `--k8` (D7500 was recovered by an external project with the value withheld, see [docs/d7500-external-verification.en.md](docs/d7500-external-verification.en.md)); for an unrecovered model the digest is preserved and marked `STALE`. Either way, the rebuilt image is **not guaranteed to be accepted by a camera**.
+This repository **does not** produce flashable images, **does not** re-sign firmware, and **does not** involve bypassing camera or updater signature verification. `repack_firmware.py` exists only for research-grade container rebuilding (recompute module/package CRCs, optional re-encryption); wrapper B's header digest depends on the model-specific `K8`. The five values for D850/D5/D500/D3400/D5600 are recovered, plus the D7500 `DC73A05066D1868C` from issue #2 (see [docs/d7500-external-verification.en.md](docs/d7500-external-verification.en.md)); all can be verified/recomputed with `--k8`; for an unrecovered model the digest is preserved and marked `STALE`. Either way, the rebuilt image is **not guaranteed to be accepted by a camera**.
 
 The three tables in `key_all.json` are only for opening official update packages and reproducing the container structure. Passing CRC only proves integrity, not authenticity.
 

@@ -13,10 +13,16 @@
 | D500 | C:1.40 | `66A13EE6A8573486` | `38` / `E3` | 65,536 | 1 |
 | D3400 | C:1.13 | `AF08FBDBB582B587` | `39` / `B5` | 65,536 | 1 |
 | D5600 | C:1.20 | `6FA0738BE53A7DE7` | `3B` / `1D` | 65,536 | 3* |
+| D7500 (external) | C:1.10–1.12 | `DC73A05066D1868C` | `44` / `3B` | — | — |
 
 \* D5600's three hits all yield the **same K8** (`3B`/`6E`/`CE` share the same `T1`
 value, so the keystreams are equivalent). The result is judged by identical K8,
 not by how many parameter sets coincide.
+
+\* The D7500 row is an external report
+([issue #2](https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool/issues/2)):
+no 65,536 search was run here; the value only reproduces with the same generator and
+`keys/t1.hex`. Its digest was not re-checked against an image.
 
 The wrapper-B header digest is, per the upstream definition:
 
@@ -111,8 +117,8 @@ python repack_firmware.py --firmware D3400_0113.bin --out out.bin ^
 - **`K8` is per-model**: all five values differ; do not reuse across models.
 - **Cross-version reuse is unverified here**. Only one version per model was solved;
   other versions (D850 `0101`, D500 `0101`/`0111`, …) need their own 65,536 search.
-  An external D7500 project reports one `K8` validating C 1.10/1.11/1.12 (value
-  withheld) — a lead, not a re-check by this repository; see
+  An external D7500 project reports one `K8` (`DC73A05066D1868C`, issue #2) validating
+  C 1.10/1.11/1.12 — generator-consistent here, but not digest-checked by this repository; see
   [d7500-external-verification.en.md](d7500-external-verification.en.md).
 - **The plaintext container is required**. An encrypted image has a different body
   and yields zero hits — the first D3400 attempt failed exactly this way.

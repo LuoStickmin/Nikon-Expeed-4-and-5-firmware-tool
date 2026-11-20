@@ -7,9 +7,10 @@
 ## 2026-11-20
 
 - 新增 [docs/d7500-external-verification.md](docs/d7500-external-verification.md)（[EN](docs/d7500-external-verification.en.md)）：与 [noahengelking/nikon-d7500-firmware-notes](https://github.com/noahengelking/nikon-d7500-firmware-notes) 的逐项对照（D7500 C 1.12：B 包装、3 模块、`dirsize=144`、CRC-16/XMODEM、`SHA1(body‖K8)`）。
-- 该外部项目报告同一个 `K8` 通过 D7500 C 1.10/1.11/1.12（值未公开），为 `docs/k8-dslr.md` §6 的“跨版本是否共用未验证”提供线索；本仓库未独立复核。
+- 该外部项目报告同一个 `K8` 通过 D7500 C 1.10/1.11/1.12，并在 [issue #2](https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool/issues/2) 公开值 `DC73A05066D1868C`（index `0x44` / step `0x3B`）；本机用 `keys/t1.hex` 与同一生成器复算一致，已写入 `keys/d7500_0112_k8.json`。摘要未用镜像复核，`--k8` 使用前仍会先验 stock 摘要。
 - 核对结果：`key_all.json` 的 `self_check` 三行与其发布值逐字一致（本机重算确认）。
-- 修订过期表述：`SECURITY.md` 仍写“四个 K8”（D850/D5/D500/D3400）→ 五个（补 D5600）；README.en §4.3 同；`docs/k8-dslr.*` 的“对象 / Targets”补 D5600；A/B 典型机型表与 K8 状态表补 D7500（外部、值未公开）。
+- `VALIDATION_MATRIX.md` 收录 issue #2 的回报：D7500 C 1.10/1.11/1.12、body `0x20`、`self_check` 一致。
+- 修订过期表述：`SECURITY.md` 仍写“四个 K8”（D850/D5/D500/D3400）→ 五个（补 D5600）；README.en §4.3 同；`docs/k8-dslr.*` 的“对象 / Targets”补 D5600；A/B 典型机型表与 K8 状态表补 D7500（外部来源，值见 issue #2）。
 
 ## 2026-11-16
 

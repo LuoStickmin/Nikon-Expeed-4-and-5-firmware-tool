@@ -80,13 +80,13 @@ A/B 的 body 内部结构、模块 CRC、包 CRC、XOR 加密方式完全一致�
 | D500 | C:1.40 | `66A13EE6A8573486` | [docs/k8-dslr.md](k8-dslr.md) |
 | D3400 | C:1.13 | `AF08FBDBB582B587` | [docs/k8-dslr.md](k8-dslr.md) |
 | D5600 | C:1.20 | `6FA0738BE53A7DE7` | [docs/k8-dslr.md](k8-dslr.md) |
-| D7500 | C:1.10–1.12 | —（外部恢复，值未公开） | [d7500-external-verification.md](d7500-external-verification.md) |
+| D7500 | C:1.10–1.12 | `DC73A05066D1868C` | [d7500-external-verification.md](d7500-external-verification.md)、issue [#2](https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool/issues/2) |
 
 边界：
 
 - K8 **按机型不同**；不要跨机型复用。
 - 同机型不同固件版本是否共用 K8：本仓库**未验证**（目前每个机型只解了一个版本）；
-  外部 D7500 项目报告 C 1.10/1.11/1.12 共用同一个 `K8`（值未公开），见
+  外部 D7500 项目（issue #2）报告 C 1.10/1.11/1.12 共用同一个 `K8`（`DC73A05066D1868C`），见
   [d7500-external-verification.md](d7500-external-verification.md)。
 - 重算摘要只证明容器一致，**不证明相机接受**，也不证明镜像可信。
 - D3400 的 12 B 头尾是非零的；工具原样复制，不解释其语义。
@@ -128,7 +128,7 @@ A/B 的 body 内部结构、模块 CRC、包 CRC、XOR 加密方式完全一致�
 | [LuoStickmin/D750-QEMU](https://github.com/LuoStickmin/D750-QEMU) | D750 packaging A、加密/重打包、QEMU 验证与 LCD dump |
 | [LuoStickmin/E4_HQ_VID](https://github.com/LuoStickmin/E4_HQ_VID) | Expeed 4 电影模式 profile；D3400/D5600 B 包；8 个 profile 的 stock 校验与容器层重打包验证 |
 | [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool) | 容器格式、两级 CRC、header digest 的早期文档与工具 |
-| [noahengelking/nikon-d7500-firmware-notes](https://github.com/noahengelking/nikon-d7500-firmware-notes) | D7500（EXPEED 5）独立复核：B 包装、3 模块、两级 CRC 全过；`K8` 在 C 1.10–1.12 通用（值未公开）；见 [d7500-external-verification.md](d7500-external-verification.md) |
+| [noahengelking/nikon-d7500-firmware-notes](https://github.com/noahengelking/nikon-d7500-firmware-notes) | D7500（EXPEED 5）独立复核：B 包装、3 模块、两级 CRC 全过；`K8` 在 C 1.10–1.12 通用（`DC73A05066D1868C`）；见 [d7500-external-verification.md](d7500-external-verification.md) |
 
 ## 7. 工具需求清单
 
@@ -161,7 +161,7 @@ A/B 的 body 内部结构、模块 CRC、包 CRC、XOR 加密方式完全一致�
 | D850 1.31 | **B** | `C5005F49CFF65525` | Expeed 5 |
 | D5 1.50 | **B** | `1F0CE7E3DDA60907` | Expeed 5 |
 | D500 1.40 | **B** | `66A13EE6A8573486` | Expeed 5 |
-| D7500 1.12 | **B** | —（外部项目已恢复，值未公开） | Expeed 5；模块 `a1450` / `_wma_ver01.11.00` / `b1450_112` |
+| D7500 1.12 | **B** | `DC73A05066D1868C` | Expeed 5；模块 `a1450` / `_wma_ver01.11.00` / `b1450_112`；摘要未在本机复核 |
 | Z 5II / Z 50II / Z 6III / ZR | 新封包 `0x260` | — | 仅识别/拒绝，payload 未破 |
 
 > “加密”指 body 被 XOR；header 和空格标签始终明文。A/B 与加密/明文是两回事。

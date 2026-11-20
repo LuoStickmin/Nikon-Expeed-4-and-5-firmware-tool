@@ -8,7 +8,12 @@
 
 | 机型 / Model | 固件版本 / Version | body 偏移 / offset | self_check 一致 / match | 回报者 / Reporter | issue |
 | --- | --- | --- | --- | --- | --- |
-| _（待填）/ (to fill)_ | | | | | |
+| D7500 | C:1.12 | `0x20` | ✅ 一致 / match | [noahengelking](https://github.com/noahengelking) | [#2](https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool/issues/2) |
+| D7500 | C:1.11 | `0x20` | ✅ 一致 / match | noahengelking | #2 |
+| D7500 | C:1.10 | `0x20` | ✅ 一致 / match | noahengelking | #2 |
+
+> D7500 的 `K8` 为 `DC73A05066D1868C`（index `0x44` / step `0x3B`），1.13 重打包验证也通过
+> CRC 与摘要（未刷机）。细节见 [docs/d7500-external-verification.md](docs/d7500-external-verification.md)。
 
 ## 不一致记录 / Mismatch records
 
@@ -32,7 +37,13 @@ if the three `self_check` lines match README §4.1, it is eligible.
 
 | Model | Firmware version | body offset | self_check match | Reporter | issue |
 | --- | --- | --- | --- | --- | --- |
-| _(to fill)_ | | | | | |
+| D7500 | C:1.12 | `0x20` | ✅ match | [noahengelking](https://github.com/noahengelking) | [#2](https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool/issues/2) |
+| D7500 | C:1.11 | `0x20` | ✅ match | noahengelking | #2 |
+| D7500 | C:1.10 | `0x20` | ✅ match | noahengelking | #2 |
+
+> The D7500 `K8` is `DC73A05066D1868C` (index `0x44` / step `0x3B`); a validation-only 1.13
+> repack also passes every CRC and the digest (not flashed). Details in
+> [docs/d7500-external-verification.en.md](docs/d7500-external-verification.en.md).
 
 ## Mismatch records
 

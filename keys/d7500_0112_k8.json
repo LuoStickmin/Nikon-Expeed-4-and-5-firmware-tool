@@ -1,0 +1,18 @@
+{
+  "model": "Nikon D7500",
+  "firmware_version": "C:1.10 / C:1.11 / C:1.12",
+  "packaging": "B (32-byte header at 0x00, 32-space label at 0x20)",
+  "K8": "DC73A05066D1868C",
+  "self_check": "49772b8703a577e44c4cc706bd090d810afccda8cc565208add1f203682872f6",
+  "digest": "SHA1(container[0x20:] || K8) must equal container[0:20]",
+  "provenance": "Reported by noahengelking in GitHub issue #2 (https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool/issues/2) for D7500 C:1.10-1.12 after the repo's own K8 was recovered by an independent project.",
+  "verification": "Generator-consistent: index 0x44 / step 0x3B reproduce this K8 from keys/t1.hex and raw D319A081BBF520EF, using the same convention that reproduces D850 (0x45/0xE3) and D3400 (0x39/0xB5). The header digest itself was NOT re-checked on this machine (no D7500 image); repack_firmware.py verifies the stock digest before use, so a wrong value fails closed with exit 3.",
+  "scope_note": "Verifies the packaging-B header digest only. Not proof of image safety, provenance or authenticity, and not valid for any other model.",
+  "derivation": {
+    "keystream_index": "0x44",
+    "step": "0x3B",
+    "raw_0x10000080": "D319A081BBF520EF",
+    "method": "K8 = raw XOR keystream(T1[index], step)",
+    "source": "external report (issue #2); reproduced locally against keys/t1.hex"
+  }
+}
