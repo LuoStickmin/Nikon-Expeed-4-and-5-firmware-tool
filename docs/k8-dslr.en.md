@@ -1,7 +1,7 @@
 # DSLR packaging-B `K8`
 
-> Recorded: 2026-11-15
-> Targets: D850 C:1.31, D5 C:1.50, D500 C:1.40, D3400 C:1.13
+> Recorded: 2026-11-15 (2026-11-20: added D5600 and the external D7500 lead)
+> Targets: D850 C:1.31, D5 C:1.50, D500 C:1.40, D3400 C:1.13, D5600 C:1.20
 > Nature: read-only static analysis; no firmware samples in this repository
 
 ## Results
@@ -109,8 +109,11 @@ python repack_firmware.py --firmware D3400_0113.bin --out out.bin ^
 ## 6. Limits
 
 - **`K8` is per-model**: all five values differ; do not reuse across models.
-- **Cross-version reuse is unverified**. Only one version per model was solved;
+- **Cross-version reuse is unverified here**. Only one version per model was solved;
   other versions (D850 `0101`, D500 `0101`/`0111`, …) need their own 65,536 search.
+  An external D7500 project reports one `K8` validating C 1.10/1.11/1.12 (value
+  withheld) — a lead, not a re-check by this repository; see
+  [d7500-external-verification.en.md](d7500-external-verification.en.md).
 - **The plaintext container is required**. An encrypted image has a different body
   and yields zero hits — the first D3400 attempt failed exactly this way.
 - **Header digest only**. The 12 bytes at `header[0x14:0x20]` are not covered and

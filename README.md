@@ -10,6 +10,7 @@
 
 **最近更新 / Recent updates** — 每次改动在顶部追加一条，完整记录见 [CHANGELOG.md](CHANGELOG.md)。
 
+- **2026-11-20** — 新增 [docs/d7500-external-verification.md](docs/d7500-external-verification.md)（[EN](docs/d7500-external-verification.en.md)）：与独立 D7500 项目逐项对照；其报告 D7500 的 `K8` 跨 C 1.10–1.12 通用（值未公开）。
 - **2026-11-16** — 新增 [docs/different_packaging_models.md](docs/different_packaging_models.md)（[EN](docs/different_packaging_models.en.md)）：汇总 A/B/`0x260` 封包、K8 状态、跨项目证据和工具需求。
 - **2026-11-15** — 恢复 D850 / D5 / D500 / D3400 / D5600 的 packaging B `K8`，新增 `k8_solve.c` 与 `keys/`，方法与证据见 [docs/k8-dslr.md](docs/k8-dslr.md)。
 - **2026-11-14** — 记录 D3400 的 packaging B 变体（Expeed 4 也可是 B），见 [docs/d3400-wrapper-b.md](docs/d3400-wrapper-b.md)。
@@ -116,7 +117,7 @@ len(body)-2     14 × 0x00            尾部填充
 
 关键点：**密钥流相位以空格标签（body 起点）为 0**，与文件头长度无关。因此同一套表可以同时处理 A 与 B 两种包装；`key_all.json` 的 `sources[].header` 记录的正是各镜像的 body 起点。
 
-包装 B 的 32 字节头部，按上游 [Firmware format](https://github.com/WonderLantern/nikon-fw-key-tool#firmware-format) 的定义是 `[20 字节 SHA-1 摘要][12 字节未识别]`，摘要满足 `header[0:20] == SHA1(decrypted_body || K8)`；`K8` 是机型专属的 8 字节密钥，因此这是“带密钥摘要”，不是非对称签名。本仓库的 `repack_firmware.py --k8` 现在会校验原镜像摘要并为新 body 重算（求解器见 `k8_solve.c`）；实测 DSLR 样本的前缀既不等于 `SHA1(body)` 也不等于 `SHA1(body[:-16])`，符合带密钥摘要的行为。五个 DSLR 机型的 `K8` 现已恢复（D850 / D5 / D500 / D3400 / D5600），见 [docs/k8-dslr.md](docs/k8-dslr.md)。上游覆盖的 legacy 包装标签在 `0x20`；D750/D810 这类标签在 `0x00` 的 DSLR 旧包装是本仓库新增的适配（`decrypt_dslr*.py`）。
+包装 B 的 32 字节头部，按上游 [Firmware format](https://github.com/WonderLantern/nikon-fw-key-tool#firmware-format) 的定义是 `[20 字节 SHA-1 摘要][12 字节未识别]`，摘要满足 `header[0:20] == SHA1(decrypted_body || K8)`；`K8` 是机型专属的 8 字节密钥，因此这是“带密钥摘要”，不是非对称签名。本仓库的 `repack_firmware.py --k8` 现在会校验原镜像摘要并为新 body 重算（求解器见 `k8_solve.c`）；实测 DSLR 样本的前缀既不等于 `SHA1(body)` 也不等于 `SHA1(body[:-16])`，符合带密钥摘要的行为。五个 DSLR 机型的 `K8` 现已恢复（D850 / D5 / D500 / D3400 / D5600），见 [docs/k8-dslr.md](docs/k8-dslr.md)；D7500 的 `K8` 由外部独立项目恢复并验证跨 C 1.10–1.12 通用，但值未公开、本仓库不持有，见 [docs/d7500-external-verification.md](docs/d7500-external-verification.md)。上游覆盖的 legacy 包装标签在 `0x20`；D750/D810 这类标签在 `0x00` 的 DSLR 旧包装是本仓库新增的适配（`decrypt_dslr*.py`）。
 
 **D3400 是 Expeed 4 里的 B 变体。** 它和 D5600（表中同为 `0x20`）说明包装方式不是世代属性：E4 既可以是 A（D7200/D750/D810），也可以是 B。对 `D3400_0113` 的逐字节复核见 [docs/d3400-wrapper-b.md](docs/d3400-wrapper-b.md)：32 字节头的前 20 字节既不等于 `SHA1(body)`，也不等于 `SHA1(body[:-16])`；后 12 字节非零、语义未识别；`K8` 已恢复为 `AF08FBDBB582B587`（见 [docs/k8-dslr.md](docs/k8-dslr.md)）。因此模块级补丁可用，完整镜像也可用 `--k8` 重算摘要。
 
@@ -264,6 +265,8 @@ T3  3617957facf8b21a5a3de0f3a1f6f27ca20d72c7208b196b2a8bec3076f39b49
 只要恢复出的表与这三行一致，即可认为与回归集同源，通常不必再逐镜像验证。
 
 另一个佐证：这三张表的 SHA-256 前 16 字节与上游 `extract_key.py` 的 `EXPECTED_SHA` 完全一致（上游只存前缀，见 [§11](#11-参考与延伸)）。也就是说，DSLR 的 Expeed 4/5 语料恢复出的表，与上游从 Z 系列 legacy 包装恢复出的表是同一组——Nikon 在这一类包装上复用了同一套厂商密钥。
+
+还有一个旁证：独立的 D7500 项目 [noahengelking/nikon-d7500-firmware-notes](https://github.com/noahengelking/nikon-d7500-firmware-notes) 在 D7500（C 1.12）上跑通了同一容器与两级 CRC，其公布的 `self_check` 三行与本仓库逐字一致；该项目还报告 D7500 的 `K8` 跨 C 1.10–1.12 通用（值未公开）。逐项对照见 [docs/d7500-external-verification.md](docs/d7500-external-verification.md)。
 
 ### 4.2 支持的输入类型
 

@@ -13,7 +13,7 @@
 | Type | 32-space label | Body starts | Extra check | Examples |
 | --- | --- | --- | --- | --- |
 | **A** | `0x00` | `0x00` | none | D4S/D5300/D5500/D7200/D750/D810/D810A |
-| **B** | `0x20` | `0x20` | `SHA1(body ‖ K8)` in 20 B | D3400/D5600 (Expeed 4); D850/D5/D500 (Expeed 5) |
+| **B** | `0x20` | `0x20` | `SHA1(body ‖ K8)` in 20 B | D3400/D5600 (Expeed 4); D850/D5/D500/D7500 (Expeed 5) |
 | **new** | `0x260` | `0x260` | plaintext header, payload cipher unbroken | Z 5II / Z 50II / Z 6III / ZR class |
 
 Detect from the **32 `0x20` spaces** in the file, never from the generation or
@@ -82,11 +82,14 @@ end     BE16 package CRC + 14 × 0x00
 | D500 | C:1.40 | `66A13EE6A8573486` | [docs/k8-dslr.en.md](k8-dslr.en.md) |
 | D3400 | C:1.13 | `AF08FBDBB582B587` | [docs/k8-dslr.en.md](k8-dslr.en.md) |
 | D5600 | C:1.20 | `6FA0738BE53A7DE7` | [docs/k8-dslr.en.md](k8-dslr.en.md) |
+| D7500 | C:1.10–1.12 | — (recovered externally, value withheld) | [d7500-external-verification.en.md](d7500-external-verification.en.md) |
 
 Boundaries:
 
 - K8 is per-model; never reuse it across models.
-- Whether different firmware versions of the same model share K8 is unverified.
+- Whether different firmware versions of the same model share K8 is unverified here;
+  an external D7500 project reports one `K8` covering C 1.10/1.11/1.12 (value
+  withheld), see [d7500-external-verification.en.md](d7500-external-verification.en.md).
 - A matching digest proves container consistency, **not** camera acceptance or
   image trust.
 - D3400's trailing 12 header bytes are non-zero; the tool copies them verbatim.
@@ -128,6 +131,7 @@ Not part of the legacy DSLR container:
 | [LuoStickmin/D750-QEMU](https://github.com/LuoStickmin/D750-QEMU) | D750 packaging A, encryption/repack, QEMU validation and LCD dump |
 | [LuoStickmin/E4_HQ_VID](https://github.com/LuoStickmin/E4_HQ_VID) | Expeed 4 movie profiles; D3400/D5600 B; eight stock-checked profiles and container-level repack tests |
 | [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool) | Early container/checksum/header-digest documentation and tools |
+| [noahengelking/nikon-d7500-firmware-notes](https://github.com/noahengelking/nikon-d7500-firmware-notes) | Independent D7500 (EXPEED 5) pass: wrapper B, 3 modules, both CRC levels pass; one `K8` covers C 1.10–1.12 (value withheld); see [d7500-external-verification.en.md](d7500-external-verification.en.md) |
 
 ## 7. Tooling requirements
 
@@ -160,6 +164,7 @@ Not part of the legacy DSLR container:
 | D850 1.31 | **B** | `C5005F49CFF65525` | Expeed 5 |
 | D5 1.50 | **B** | `1F0CE7E3DDA60907` | Expeed 5 |
 | D500 1.40 | **B** | `66A13EE6A8573486` | Expeed 5 |
+| D7500 1.12 | **B** | — (recovered externally, value withheld) | Expeed 5; modules `a1450` / `_wma_ver01.11.00` / `b1450_112` |
 | Z 5II / Z 50II / Z 6III / ZR | new `0x260` | — | identify/reject only |
 
 > “Encrypted” means the body is XORed; the header and space label remain plaintext.
