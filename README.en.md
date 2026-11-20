@@ -4,8 +4,6 @@
 
 > Starting from the official update package `.bin`, **using only the ciphertext itself**, recover the vendor-level XOR key tables, open the container, verify the two-level CRC, carve out the modules, and leave behind a set of static-analysis probes.
 >
-> Repository: <https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool>
->
 > **Related project:** the D750 high-bitrate video modification (64/60 Mbps), QEMU validation, and LCD dump have moved to [LuoStickmin/D750-QEMU](https://github.com/LuoStickmin/D750-QEMU); this repository focuses on the firmware container, key recovery, and repacking.
 
 **Recent updates** — add one entry at the top for every change; full record in [CHANGELOG.md](CHANGELOG.md).
