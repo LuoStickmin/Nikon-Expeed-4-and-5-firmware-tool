@@ -4,8 +4,6 @@
 
 > 从官方更新包 `.bin` 出发，**只用密文本身**恢复厂商级 XOR 密钥表，解开容器、校验两级 CRC、切出模块，并留下一组静态分析探针。
 >
-> 仓库地址：<https://github.com/LuoStickmin/Nikon-Expeed-4-and-5-firmware-tool>
->
 > **相关项目 / Related project：** D750 高码率视频修改（64/60 Mbps）、QEMU 验证与 LCD dump 已拆分到 [LuoStickmin/D750-QEMU](https://github.com/LuoStickmin/D750-QEMU)；本仓库专注固件容器、密钥恢复与重打包。
 
 **最近更新 / Recent updates** — 每次改动在顶部追加一条，完整记录见 [CHANGELOG.md](CHANGELOG.md)。
